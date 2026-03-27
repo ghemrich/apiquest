@@ -1,0 +1,134 @@
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+
+from app.crud.challenge import get_challenge_by_id, get_next_challenge
+from app.crud.gamification import count_hints_revealed
+from app.crud.submission import (
+    count_total_attempts,
+    create_submission,
+    has_solved_challenge,
+)
+from app.dependencies import get_current_user, get_db
+from app.models.user import User
+from app.schemas.submission import PartialMatch, SubmissionCreate, SubmissionResponse
+from app.services.validation_engine import validate_submission
+
+router = APIRouter(prefix="/api/v1/challenges", tags=["Submissions"])
+
+HINT_COSTS = {1: 5, 2: 10, 3: 15, 4: 20, 5: 25}
+
+
+def _calculate_hint_penalty(hints_used: int) -> int:
+    total = 0
+    for i in range(1, hints_used + 1):
+        total += HINT_COSTS.get(i, 25)
+    return total
+
+
+def _calculate_points(
+    base_points: int,
+    attempt_number: int,
+    hints_used: int,
+) -> int:
+    hint_penalty = _calculate_hint_penalty(hints_used)
+
+    if attempt_number == 1:
+        multiplier = 2.0
+    elif attempt_number == 2:
+        multiplier = 1.5
+    else:
+        multiplier = 1.0
+
+    final = (base_points - hint_penalty) * multiplier
+    minimum = base_points * 0.1
+    return max(int(final), int(minimum))
+
+
+@router.post("/{challenge_id}/submit", response_model=SubmissionResponse)
+def submit_solution(
+    challenge_id: uuid.UUID,
+    data: SubmissionCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    challenge = get_challenge_by_id(db, challenge_id)
+    if not challenge:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Challenge not found")
+
+    # Check if already solved
+    already_solved = has_solved_challenge(db, current_user.id, challenge.id)
+    if already_solved:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You have already solved this challenge",
+        )
+
+    # Run validation
+    result = validate_submission(
+        submitted_method=data.method,
+        submitted_path=data.path,
+        submitted_headers=data.headers,
+        submitted_query_params=data.query_params,
+        submitted_body=data.body,
+        expected_method=challenge.expected_method,
+        expected_path=challenge.expected_path,
+        expected_headers=challenge.expected_headers,
+        expected_query_params=challenge.expected_query_params,
+        expected_body=challenge.expected_body,
+    )
+
+    hints_used = count_hints_revealed(db, current_user.id, challenge.id)
+    attempt_number = count_total_attempts(db, current_user.id, challenge.id) + 1
+    points_earned = 0
+
+    if result.is_correct:
+        points_earned = _calculate_points(challenge.points_value, attempt_number, hints_used)
+        current_user.total_points += points_earned
+        db.add(current_user)
+
+    # Save submission
+    create_submission(
+        db=db,
+        user_id=current_user.id,
+        challenge_id=challenge.id,
+        submitted_method=data.method,
+        submitted_path=data.path,
+        submitted_headers=data.headers,
+        submitted_query_params=data.query_params,
+        submitted_body=data.body,
+        is_correct=result.is_correct,
+        points_earned=points_earned,
+        hints_used=hints_used,
+        feedback=result.feedback,
+    )
+
+    if result.is_correct:
+        next_ch = get_next_challenge(db, challenge)
+        next_challenge_url = f"GET /api/v1/challenges/{next_ch.id}" if next_ch else None
+
+        return SubmissionResponse(
+            is_correct=True,
+            feedback=result.feedback,
+            points_earned=points_earned,
+            first_attempt_bonus=attempt_number == 1,
+            total_points=current_user.total_points,
+            badges_earned=[],
+            next_challenge=next_challenge_url,
+        )
+
+    # Incorrect
+    hints_total = len(challenge.hints) if challenge.hints else 0
+    return SubmissionResponse(
+        is_correct=False,
+        feedback=result.feedback,
+        partial_matches=PartialMatch(
+            method=result.method_match,
+            path=result.path_match,
+            headers=result.headers_match,
+            body=result.body_match,
+        ),
+        hints_available=hints_total - hints_used,
+        hint_endpoint=f"GET /api/v1/challenges/{challenge.id}/hints/{hints_used + 1}",
+    )

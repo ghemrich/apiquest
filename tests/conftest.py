@@ -61,3 +61,58 @@ def registered_user(client):
 def auth_header(registered_user):
     """Return an Authorization header dict for the registered user."""
     return {"Authorization": f"Bearer {registered_user['access_token']}"}
+
+
+@pytest.fixture
+def sample_track(db):
+    """Create a beginner track with one challenge."""
+    from app.models.challenge import Track, Challenge, Difficulty
+
+    track = Track(
+        title="REST Fundamentals",
+        description="Learn GET, POST, PUT, DELETE.",
+        difficulty=Difficulty.beginner,
+        order_index=1,
+    )
+    db.add(track)
+    db.commit()
+    db.refresh(track)
+
+    challenge = Challenge(
+        track_id=track.id,
+        title="Hello, API",
+        description="Find the welcome endpoint.\nThe API base URL is /api/v1/sandbox/books",
+        difficulty=Difficulty.beginner,
+        points_value=50,
+        expected_method="GET",
+        expected_path="/api/v1/sandbox/books/",
+        expected_headers=None,
+        expected_query_params=None,
+        expected_body=None,
+        hints=["What's the simplest HTTP request?", "Try GET on the base URL.", "GET /api/v1/sandbox/books/", "Send: GET /api/v1/sandbox/books/", "Full answer explanation."],
+        order_index=1,
+        sandbox_endpoint="/api/v1/sandbox/books",
+    )
+    db.add(challenge)
+
+    challenge2 = Challenge(
+        track_id=track.id,
+        title="The Library",
+        description="Retrieve all books.",
+        difficulty=Difficulty.beginner,
+        points_value=50,
+        expected_method="GET",
+        expected_path="/api/v1/sandbox/books",
+        expected_headers=None,
+        expected_query_params=None,
+        expected_body=None,
+        hints=["Collections use plural nouns.", "GET /api/v1/sandbox/books"],
+        order_index=2,
+        sandbox_endpoint="/api/v1/sandbox/books",
+    )
+    db.add(challenge2)
+    db.commit()
+    db.refresh(challenge)
+    db.refresh(challenge2)
+
+    return {"track": track, "challenge": challenge, "challenge2": challenge2}
