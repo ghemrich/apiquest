@@ -142,7 +142,7 @@ def submit_solution(
             first_at = first_at.replace(tzinfo=_tz.utc)
         solve_duration = (now - first_at).total_seconds()
     else:
-        solve_duration = 0.0  # first attempt — instant
+        solve_duration = None  # first attempt — no prior timing data
 
     if result.is_correct:
         points_earned = _calculate_points(

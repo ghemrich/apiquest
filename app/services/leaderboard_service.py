@@ -88,7 +88,7 @@ def get_global_leaderboard(db: Session, limit: int = 100) -> list[LeaderboardEnt
             func.coalesce(badge_count_sub.c.badge_count, 0).label("badge_count"),
         )
         .outerjoin(badge_count_sub, User.id == badge_count_sub.c.user_id)
-        .order_by(User.total_points.desc())
+        .order_by(User.total_points.desc(), User.created_at.asc())
         .limit(limit)
         .all()
     )
@@ -121,7 +121,7 @@ def get_weekly_leaderboard(db: Session, week_start, limit: int = 100) -> list[Le
         .join(Submission, Submission.user_id == User.id)
         .filter(Submission.is_correct == True, Submission.submitted_at >= week_start)  # noqa: E712
         .group_by(User.id, User.username)
-        .order_by(func.sum(Submission.points_earned).desc())
+        .order_by(func.sum(Submission.points_earned).desc(), User.created_at.asc())
         .limit(limit)
         .all()
     )
@@ -155,7 +155,7 @@ def get_track_leaderboard(db: Session, track_id: uuid.UUID, limit: int = 50) -> 
         .join(Challenge, Submission.challenge_id == Challenge.id)
         .filter(Challenge.track_id == track_id, Submission.is_correct == True)  # noqa: E712
         .group_by(User.id, User.username)
-        .order_by(func.sum(Submission.points_earned).desc())
+        .order_by(func.sum(Submission.points_earned).desc(), User.created_at.asc())
         .limit(limit)
         .all()
     )

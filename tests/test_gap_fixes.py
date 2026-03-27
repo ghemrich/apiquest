@@ -206,6 +206,14 @@ class TestSpeedDemonBadge:
         _make_challenge(db, track, order=2, points=50)  # prevent track completion
         db.commit()
 
+        # First submit wrong — creates a prior attempt so solve_duration is calculated
+        client.post(
+            f"/api/v1/challenges/{ch.id}/submit",
+            headers=auth_header,
+            json={"method": "POST", "path": "/wrong"},
+        )
+
+        # Second submit correct — solve_duration will be small but non-None
         resp = client.post(
             f"/api/v1/challenges/{ch.id}/submit",
             headers=auth_header,
@@ -297,3 +305,35 @@ class TestServiceImports:
         assert callable(notify_badge_earned)
         assert callable(notify_streak_milestone)
         assert callable(notify_track_completed)
+
+
+class TestTimeBonusFirstAttempt:
+    """First attempt should NOT get a time bonus (solve_duration is None)."""
+
+    def test_first_attempt_no_time_bonus(self, client, auth_header, db):
+        track = _make_track(db)
+        ch = _make_challenge(db, track, order=1, points=50, time_limit=300)
+        _make_challenge(db, track, order=2, points=50)  # prevent track completion
+        db.commit()
+
+        resp = client.post(
+            f"/api/v1/challenges/{ch.id}/submit",
+            headers=auth_header,
+            json={"method": "GET", "path": "/api/v1/sandbox/books/"},
+        )
+        data = resp.json()
+        assert data["is_correct"] is True
+        # First attempt: (50 - 0) * 2.0 + 0 (no time bonus) + 0 = 100
+        # If bug existed: (50 - 0) * 2.0 + 25 + 0 = 125
+        assert data["points_earned"] == 100
+
+
+class TestMalformedTokenUUID:
+    """Malformed UUID in token should return 401, not 500."""
+
+    def test_invalid_uuid_in_token(self, client):
+        from app.services.auth_service import create_access_token
+
+        token = create_access_token({"sub": "not-a-valid-uuid"})
+        resp = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 401
