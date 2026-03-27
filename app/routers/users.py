@@ -22,8 +22,17 @@ router = APIRouter(prefix="/api/v1/users", tags=["Users"])
 
 
 @router.get("/me", response_model=UserResponse)
-def get_my_profile(current_user: User = Depends(get_current_user)):
+def get_my_profile(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """Get the current authenticated user's profile."""
+    badge_names = (
+        db.query(Badge.name)
+        .join(UserBadge, Badge.id == UserBadge.badge_id)
+        .filter(UserBadge.user_id == current_user.id)
+        .all()
+    )
     return UserResponse(
         id=current_user.id,
         username=current_user.username,
@@ -35,6 +44,7 @@ def get_my_profile(current_user: User = Depends(get_current_user)):
         avatar_url=current_user.avatar_url,
         bio=current_user.bio,
         created_at=current_user.created_at,
+        badges=[row[0] for row in badge_names],
     )
 
 
@@ -63,6 +73,12 @@ def update_my_profile(
     db.commit()
     db.refresh(current_user)
 
+    badge_names = (
+        db.query(Badge.name)
+        .join(UserBadge, Badge.id == UserBadge.badge_id)
+        .filter(UserBadge.user_id == current_user.id)
+        .all()
+    )
     return UserResponse(
         id=current_user.id,
         username=current_user.username,
@@ -74,6 +90,7 @@ def update_my_profile(
         avatar_url=current_user.avatar_url,
         bio=current_user.bio,
         created_at=current_user.created_at,
+        badges=[row[0] for row in badge_names],
     )
 
 
@@ -164,6 +181,37 @@ def get_user_stats(
         .scalar()
     )
 
+    # Average solve time (seconds) across correct submissions
+    avg_solve = (
+        db.query(func.avg(Submission.solve_duration_seconds))
+        .filter(
+            Submission.user_id == user_id,
+            Submission.is_correct == True,  # noqa: E712
+            Submission.solve_duration_seconds.isnot(None),
+        )
+        .scalar()
+    )
+
+    # Tier progress — completion per difficulty level
+    tier_parts: list[str] = []
+    for diff in ("beginner", "intermediate", "advanced"):
+        total_d = db.query(Challenge).filter(Challenge.difficulty == diff).count()
+        if total_d == 0:
+            continue
+        solved_d = (
+            db.query(func.count(func.distinct(Submission.challenge_id)))
+            .join(Challenge, Submission.challenge_id == Challenge.id)
+            .filter(
+                Submission.user_id == user_id,
+                Submission.is_correct == True,  # noqa: E712
+                Challenge.difficulty == diff,
+            )
+            .scalar()
+        ) or 0
+        pct = round(solved_d / total_d * 100)
+        tier_parts.append(f"{diff.capitalize()} {pct}%")
+    tier_progress_str = " | ".join(tier_parts) if tier_parts else None
+
     completion_pct = (challenges_solved / total_challenges * 100) if total_challenges > 0 else 0.0
 
     return UserStatsResponse(
@@ -175,6 +223,8 @@ def get_user_stats(
         badges_earned=badges_earned,
         completion_percentage=round(completion_pct, 1),
         average_hints_used=round(float(avg_hints), 2) if avg_hints is not None else None,
+        average_solve_time=round(float(avg_solve), 2) if avg_solve is not None else None,
+        tier_progress=tier_progress_str,
     )
 
 

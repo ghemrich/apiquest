@@ -22,6 +22,7 @@ class Submission(Base):
     points_earned: Mapped[int] = mapped_column(Integer, default=0)
     hints_used: Mapped[int] = mapped_column(Integer, default=0)
     feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
+    solve_duration_seconds: Mapped[float | None] = mapped_column(nullable=True)
     submitted_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     user: Mapped["User"] = relationship(back_populates="submissions")  # noqa: F821

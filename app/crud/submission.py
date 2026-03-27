@@ -19,6 +19,7 @@ def create_submission(
     points_earned: int,
     hints_used: int,
     feedback: str,
+    solve_duration_seconds: float | None = None,
 ) -> Submission:
     submission = Submission(
         user_id=user_id,
@@ -32,6 +33,7 @@ def create_submission(
         points_earned=points_earned,
         hints_used=hints_used,
         feedback=feedback,
+        solve_duration_seconds=solve_duration_seconds,
     )
     db.add(submission)
     db.commit()

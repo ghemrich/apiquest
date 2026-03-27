@@ -23,6 +23,8 @@ class UserStatsResponse(BaseModel):
     badges_earned: int
     completion_percentage: float
     average_hints_used: float | None = None
+    average_solve_time: float | None = None
+    tier_progress: str | None = None
 
     model_config = {"from_attributes": True}
 

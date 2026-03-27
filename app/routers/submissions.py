@@ -27,6 +27,7 @@ from app.kafka.producer import (
     TOPIC_TRACK_COMPLETED,
     emit_event,
 )
+from app.models.submission import Submission
 from app.models.user import User
 from app.schemas.submission import PartialMatch, SubmissionCreate, SubmissionResponse
 from app.services.gamification_service import (
@@ -52,6 +53,9 @@ def _calculate_points(
     base_points: int,
     attempt_number: int,
     hints_used: int,
+    current_streak: int = 0,
+    time_limit_seconds: int | None = None,
+    solve_duration_seconds: float | None = None,
 ) -> int:
     hint_penalty = _calculate_hint_penalty(hints_used)
 
@@ -62,7 +66,13 @@ def _calculate_points(
     else:
         multiplier = 1.0
 
-    final = (base_points - hint_penalty) * multiplier
+    time_bonus = 0.0
+    if time_limit_seconds and solve_duration_seconds is not None and solve_duration_seconds <= time_limit_seconds:
+        time_bonus = base_points * 0.5
+
+    streak_bonus = min(current_streak, 7) * 25
+
+    final = (base_points - hint_penalty) * multiplier + time_bonus + streak_bonus
     minimum = base_points * 0.1
     return max(int(final), int(minimum))
 
@@ -115,8 +125,34 @@ def submit_solution(
     attempt_number = count_total_attempts(db, current_user.id, challenge.id) + 1
     points_earned = 0
 
+    # Calculate solve duration from first attempt on this challenge
+    solve_duration: float | None = None
+    first_attempt = (
+        db.query(Submission)
+        .filter(Submission.user_id == current_user.id, Submission.challenge_id == challenge.id)
+        .order_by(Submission.submitted_at.asc())
+        .first()
+    )
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    if first_attempt and first_attempt.submitted_at:
+        first_at = first_attempt.submitted_at
+        if first_at.tzinfo is None:
+            from datetime import timezone as _tz
+            first_at = first_at.replace(tzinfo=_tz.utc)
+        solve_duration = (now - first_at).total_seconds()
+    else:
+        solve_duration = 0.0  # first attempt — instant
+
     if result.is_correct:
-        points_earned = _calculate_points(challenge.points_value, attempt_number, hints_used)
+        points_earned = _calculate_points(
+            challenge.points_value,
+            attempt_number,
+            hints_used,
+            current_streak=current_user.current_streak,
+            time_limit_seconds=challenge.time_limit_seconds,
+            solve_duration_seconds=solve_duration,
+        )
         current_user.total_points += points_earned
         db.add(current_user)
 
@@ -140,6 +176,7 @@ def submit_solution(
         points_earned=points_earned,
         hints_used=hints_used,
         feedback=result.feedback,
+        solve_duration_seconds=solve_duration if result.is_correct else None,
     )
 
     # Badge check after submission is saved (so solved count is correct)

@@ -143,6 +143,22 @@ def _total_challenges_by_difficulty(db: Session, difficulty: str) -> int:
     return db.query(Challenge).filter(Challenge.difficulty == difficulty).count()
 
 
+def _count_speed_solves(db: Session, user_id: uuid.UUID) -> int:
+    """Count challenges solved under the time limit."""
+    return (
+        db.query(func.count(func.distinct(Submission.challenge_id)))
+        .join(Challenge, Submission.challenge_id == Challenge.id)
+        .filter(
+            Submission.user_id == user_id,
+            Submission.is_correct == True,  # noqa: E712
+            Challenge.time_limit_seconds.isnot(None),
+            Submission.solve_duration_seconds.isnot(None),
+            Submission.solve_duration_seconds <= Challenge.time_limit_seconds,
+        )
+        .scalar()
+    ) or 0
+
+
 def check_and_award_badges(db: Session, user_id: uuid.UUID) -> list[str]:
     """Evaluate all badge criteria for a user and award any newly earned badges.
     Returns list of newly earned badge names."""
@@ -206,6 +222,8 @@ def check_and_award_badges(db: Session, user_id: uuid.UUID) -> list[str]:
         elif ct == "all_challenges_complete":
             total = db.query(Challenge).count()
             earned = solved_count >= total and total > 0
+        elif ct == "speed_solves":
+            earned = _count_speed_solves(db, user_id) >= badge.criteria_value
 
         if earned:
             _award_badge(db, user_id, badge.id)

@@ -26,6 +26,11 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=8, max_length=128)
+
+
 class UserResponse(BaseModel):
     id: uuid.UUID
     username: str
@@ -37,6 +42,7 @@ class UserResponse(BaseModel):
     avatar_url: str | None = None
     bio: str | None = None
     created_at: datetime
+    badges: list[str] = []
     next_step: str | None = None
 
     model_config = {"from_attributes": True}
