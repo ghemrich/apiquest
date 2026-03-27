@@ -11,7 +11,7 @@ from app.kafka.consumers import (
     unregister_eventbus_consumers,
 )
 from app.kafka.producer import start_kafka_producer, stop_kafka_producer
-from app.routers import auth, challenges, leaderboard, root, submissions, tracks, websockets
+from app.routers import auth, challenges, leaderboard, root, submissions, tracks, users, websockets
 from app.sandbox import mock_advanced, mock_auth, mock_books, mock_broken, mock_stream, mock_tasks, mock_users
 
 logger = logging.getLogger(__name__)
@@ -48,6 +48,7 @@ app.include_router(tracks.router)
 app.include_router(challenges.router)
 app.include_router(submissions.router)
 app.include_router(leaderboard.router)
+app.include_router(users.router)
 app.include_router(websockets.router)
 
 # Sandbox mock APIs
