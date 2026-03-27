@@ -43,7 +43,8 @@ class TestPointsFormula:
         db.flush()
 
         track = _make_track(db)
-        ch = _make_challenge(db, track, points=50)
+        ch = _make_challenge(db, track, order=1, points=50)
+        _make_challenge(db, track, order=2, points=50)  # prevent track completion
         db.commit()
 
         resp = client.post(
@@ -71,7 +72,8 @@ class TestPointsFormula:
         db.flush()
 
         track = _make_track(db)
-        ch = _make_challenge(db, track, points=50)
+        ch = _make_challenge(db, track, order=1, points=50)
+        _make_challenge(db, track, order=2, points=50)  # prevent track completion
         db.commit()
 
         resp = client.post(
@@ -200,7 +202,8 @@ class TestSpeedDemonBadge:
         _make_badge(db, "Speed Demon", "speed_solves", 1)
 
         track = _make_track(db)
-        ch = _make_challenge(db, track, points=50, time_limit=600)  # 10 min limit
+        ch = _make_challenge(db, track, order=1, points=50, time_limit=600)  # 10 min limit
+        _make_challenge(db, track, order=2, points=50)  # prevent track completion
         db.commit()
 
         resp = client.post(
@@ -211,3 +214,86 @@ class TestSpeedDemonBadge:
         data = resp.json()
         assert data["is_correct"] is True
         assert "Speed Demon" in data["badges_earned"]
+
+
+class TestTrackCompletionBonus:
+    """Completing a track should award 500 × 1.5 = 750 bonus points."""
+
+    def test_track_completion_bonus_awarded(self, client, auth_header, db):
+        track = _make_track(db)
+        ch1 = _make_challenge(db, track, order=1, points=50)
+        ch2 = _make_challenge(db, track, order=2, points=50)
+        db.commit()
+
+        # Solve first challenge (track NOT complete yet)
+        resp1 = client.post(
+            f"/api/v1/challenges/{ch1.id}/submit",
+            headers=auth_header,
+            json={"method": "GET", "path": "/api/v1/sandbox/books/"},
+        )
+        data1 = resp1.json()
+        assert data1["is_correct"] is True
+        points_after_first = data1["total_points"]
+
+        # Solve second challenge (track COMPLETES → +750 bonus)
+        resp2 = client.post(
+            f"/api/v1/challenges/{ch2.id}/submit",
+            headers=auth_header,
+            json={"method": "GET", "path": "/api/v1/sandbox/books/"},
+        )
+        data2 = resp2.json()
+        assert data2["is_correct"] is True
+        # Second challenge earns base points + track bonus
+        # Base: 50 * 2.0 (first attempt) + streak_bonus(1)*25 = 100 + 25 = 125
+        # Track bonus: 500 * 1.5 = 750
+        # Total earned on this submit = 125 + 750 = 875
+        assert data2["points_earned"] == 875
+        assert data2["total_points"] == points_after_first + 875
+
+
+class TestServiceImports:
+    """Verify the three service files are importable and have expected attributes."""
+
+    def test_challenge_service(self):
+        from app.services.challenge_service import (
+            get_challenge,
+            get_track,
+            is_track_unlocked,
+            list_challenges_in_track,
+            list_tracks,
+            next_challenge,
+        )
+        assert callable(list_tracks)
+        assert callable(get_track)
+        assert callable(get_challenge)
+        assert callable(list_challenges_in_track)
+        assert callable(next_challenge)
+        assert callable(is_track_unlocked)
+
+    def test_submission_service(self):
+        from app.services.submission_service import (
+            check_already_solved,
+            get_attempt_number,
+            get_first_attempt,
+            save_submission,
+            validate,
+        )
+        assert callable(check_already_solved)
+        assert callable(get_attempt_number)
+        assert callable(get_first_attempt)
+        assert callable(validate)
+        assert callable(save_submission)
+
+    def test_notification_service(self):
+        from app.services.notification_service import (
+            broadcast_leaderboard,
+            notify_badge_earned,
+            notify_streak_milestone,
+            notify_track_completed,
+            notify_user,
+        )
+        assert callable(notify_user)
+        assert callable(broadcast_leaderboard)
+        assert callable(notify_badge_earned)
+        assert callable(notify_streak_milestone)
+        assert callable(notify_track_completed)
