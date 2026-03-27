@@ -15,11 +15,6 @@ def _find_book(book_id: int) -> dict | None:
 
 
 @router.get("/")
-def books_root():
-    return {"message": "Welcome to the Books API!", "version": "1.0"}
-
-
-@router.get("/books")
 def list_books(page: int = 1, per_page: int = 10):
     start = (page - 1) * per_page
     end = start + per_page
@@ -31,7 +26,7 @@ def list_books(page: int = 1, per_page: int = 10):
     }
 
 
-@router.get("/books/{book_id}")
+@router.get("/{book_id}")
 def get_book(book_id: int):
     book = _find_book(book_id)
     if not book:
@@ -39,7 +34,7 @@ def get_book(book_id: int):
     return book
 
 
-@router.post("/books", status_code=status.HTTP_201_CREATED)
+@router.post("/", status_code=status.HTTP_201_CREATED)
 def create_book(request: Request, response: Response, body: dict | None = None):
     content_type = request.headers.get("content-type", "")
     if "application/json" not in content_type:
@@ -56,7 +51,7 @@ def create_book(request: Request, response: Response, body: dict | None = None):
     return new_book
 
 
-@router.put("/books/{book_id}")
+@router.put("/{book_id}")
 def update_book(book_id: int, request: Request, body: dict | None = None):
     content_type = request.headers.get("content-type", "")
     if "application/json" not in content_type:
@@ -72,7 +67,7 @@ def update_book(book_id: int, request: Request, body: dict | None = None):
     return book
 
 
-@router.delete("/books/{book_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{book_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_book(book_id: int):
     book = _find_book(book_id)
     if not book:
@@ -81,12 +76,12 @@ def delete_book(book_id: int):
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.delete("/books/", status_code=status.HTTP_405_METHOD_NOT_ALLOWED)
+@router.delete("/", status_code=status.HTTP_405_METHOD_NOT_ALLOWED)
 def delete_books_collection():
     raise HTTPException(status_code=405, detail="Cannot delete entire collection")
 
 
-@router.post("/books/status-check")
+@router.post("/status-check")
 def status_check(body: dict | None = None):
     if not body or "codes" not in body:
         raise HTTPException(status_code=400, detail="codes array required")

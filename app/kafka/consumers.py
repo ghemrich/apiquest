@@ -150,5 +150,6 @@ async def stop_kafka_consumers():
     """Cancel all Kafka consumer background tasks."""
     for task in _consumer_tasks:
         task.cancel()
+    await asyncio.gather(*_consumer_tasks, return_exceptions=True)
     _consumer_tasks.clear()
     logger.info("Kafka consumer tasks cancelled")

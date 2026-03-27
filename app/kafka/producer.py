@@ -70,17 +70,22 @@ _use_kafka = False
 async def start_kafka_producer(bootstrap_servers: str):
     """Start the aiokafka producer. Call during app startup."""
     global _producer, _use_kafka
+    if not bootstrap_servers:
+        logger.info("Kafka disabled (no bootstrap servers configured)")
+        _use_kafka = False
+        return
     try:
         from aiokafka import AIOKafkaProducer
         _producer = AIOKafkaProducer(
             bootstrap_servers=bootstrap_servers,
             value_serializer=_serialize,
         )
-        await _producer.start()
+        await asyncio.wait_for(_producer.start(), timeout=5)
         _use_kafka = True
         logger.info("Kafka producer started at %s", bootstrap_servers)
     except Exception:
         logger.warning("Kafka unavailable — using in-process EventBus fallback")
+        _producer = None
         _use_kafka = False
 
 

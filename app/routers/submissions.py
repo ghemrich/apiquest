@@ -79,12 +79,22 @@ def _calculate_points(
 
 def _fire_events(events: list[tuple[str, dict]]):
     """Run emit_event calls in an event loop (for use in BackgroundTasks)."""
-    loop = asyncio.new_event_loop()
     try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+
+    if loop and loop.is_running():
+        # Inside an already-running loop (e.g. test client) — schedule directly
         for topic, event in events:
-            loop.run_until_complete(emit_event(topic, event))
-    finally:
-        loop.close()
+            loop.create_task(emit_event(topic, event))
+    else:
+        asyncio.run(_fire_events_async(events))
+
+
+async def _fire_events_async(events: list[tuple[str, dict]]):
+    for topic, event in events:
+        await emit_event(topic, event)
 
 
 @router.post("/{challenge_id}/submit", response_model=SubmissionResponse)

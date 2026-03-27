@@ -1,5 +1,12 @@
+import os
+
 import pytest
 from fastapi.testclient import TestClient
+
+# Disable Kafka in tests
+os.environ.setdefault("KAFKA_BOOTSTRAP_SERVERS", "")
+# Disable Redis caching in tests (prevents stale leaderboard cache across tests)
+os.environ["REDIS_URL"] = "redis://localhost:63999/0"
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -21,6 +28,7 @@ TestingSessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=Fals
 
 @pytest.fixture(autouse=True)
 def setup_db():
+    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     yield
     Base.metadata.drop_all(bind=engine)
@@ -32,6 +40,7 @@ def db():
     try:
         yield session
     finally:
+        session.rollback()
         session.close()
 
 

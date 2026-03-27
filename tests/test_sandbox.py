@@ -5,34 +5,36 @@ class TestBooksAPI:
     def test_books_root(self, client):
         resp = client.get("/api/v1/sandbox/books/")
         assert resp.status_code == 200
-        assert resp.json()["message"] == "Welcome to the Books API!"
+        data = resp.json()
+        assert "data" in data
+        assert data["total"] >= 25
 
     def test_list_books(self, client):
-        resp = client.get("/api/v1/sandbox/books/books")
+        resp = client.get("/api/v1/sandbox/books/")
         assert resp.status_code == 200
         data = resp.json()
         assert data["total"] >= 25
         assert len(data["data"]) == 10  # default per_page
 
     def test_list_books_pagination(self, client):
-        resp = client.get("/api/v1/sandbox/books/books?page=2&per_page=5")
+        resp = client.get("/api/v1/sandbox/books/?page=2&per_page=5")
         data = resp.json()
         assert data["page"] == 2
         assert data["per_page"] == 5
         assert len(data["data"]) == 5
 
     def test_get_book_42(self, client):
-        resp = client.get("/api/v1/sandbox/books/books/42")
+        resp = client.get("/api/v1/sandbox/books/42")
         assert resp.status_code == 200
         assert resp.json()["title"] == "API Design Patterns"
 
     def test_get_book_not_found(self, client):
-        resp = client.get("/api/v1/sandbox/books/books/9999")
+        resp = client.get("/api/v1/sandbox/books/9999")
         assert resp.status_code == 404
 
     def test_create_book(self, client):
         resp = client.post(
-            "/api/v1/sandbox/books/books",
+            "/api/v1/sandbox/books/",
             json={"title": "New Book", "author": "Author", "year": 2025},
             headers={"Content-Type": "application/json"},
         )
@@ -41,7 +43,7 @@ class TestBooksAPI:
 
     def test_create_book_missing_fields(self, client):
         resp = client.post(
-            "/api/v1/sandbox/books/books",
+            "/api/v1/sandbox/books/",
             json={"title": "Only Title"},
             headers={"Content-Type": "application/json"},
         )
@@ -49,7 +51,7 @@ class TestBooksAPI:
 
     def test_update_book(self, client):
         resp = client.put(
-            "/api/v1/sandbox/books/books/42",
+            "/api/v1/sandbox/books/42",
             json={"title": "Updated", "author": "Auth", "year": 2025},
             headers={"Content-Type": "application/json"},
         )
@@ -57,11 +59,11 @@ class TestBooksAPI:
         assert resp.json()["title"] == "Updated"
 
     def test_delete_collection_not_allowed(self, client):
-        resp = client.delete("/api/v1/sandbox/books/books/")
+        resp = client.delete("/api/v1/sandbox/books/")
         assert resp.status_code == 405
 
     def test_status_check(self, client):
-        resp = client.post("/api/v1/sandbox/books/books/status-check", json={"codes": [404, 400]})
+        resp = client.post("/api/v1/sandbox/books/status-check", json={"codes": [404, 400]})
         assert resp.status_code == 200
         assert resp.json()["valid"] is True
 

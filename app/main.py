@@ -12,7 +12,7 @@ from app.kafka.consumers import (
 )
 from app.kafka.producer import start_kafka_producer, stop_kafka_producer
 from app.routers import auth, challenges, leaderboard, root, submissions, tracks, users, websockets
-from app.sandbox import mock_advanced, mock_auth, mock_books, mock_broken, mock_stream, mock_tasks, mock_users
+from app.sandbox import mock_advanced, mock_auth, mock_books, mock_broken, mock_hello, mock_stream, mock_tasks, mock_users
 
 logger = logging.getLogger(__name__)
 
@@ -20,13 +20,17 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup/shutdown lifecycle for Kafka producer and consumers."""
-    # Startup
-    await start_kafka_producer(settings.KAFKA_BOOTSTRAP_SERVERS)
+    # Startup — always register EventBus as fallback
     register_eventbus_consumers()
-    try:
-        await start_kafka_consumers()
-    except Exception:
-        logger.warning("Kafka consumers not started — EventBus fallback active")
+    await start_kafka_producer(settings.KAFKA_BOOTSTRAP_SERVERS)
+    from app.kafka.producer import _use_kafka
+    if _use_kafka:
+        try:
+            await start_kafka_consumers()
+        except Exception:
+            logger.warning("Kafka consumers failed to start")
+    else:
+        logger.info("Kafka unavailable — using in-process EventBus")
     yield
     # Shutdown
     await stop_kafka_consumers()
@@ -52,6 +56,7 @@ app.include_router(users.router)
 app.include_router(websockets.router)
 
 # Sandbox mock APIs
+app.include_router(mock_hello.router)
 app.include_router(mock_books.router)
 app.include_router(mock_tasks.router)
 app.include_router(mock_auth.router)
