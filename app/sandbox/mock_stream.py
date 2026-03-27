@@ -80,13 +80,11 @@ async def ws_quiz(websocket: WebSocket):
 async def ws_heartbeat(websocket: WebSocket):
     await websocket.accept()
     await websocket.send_json({"type": "connected", "message": "Send ping every 15s to stay alive"})
-    last_ping = time.time()
     try:
         while True:
             try:
                 data = await asyncio.wait_for(websocket.receive_json(), timeout=30.0)
                 if data.get("type") == "ping":
-                    last_ping = time.time()
                     await websocket.send_json({"type": "pong"})
             except asyncio.TimeoutError:
                 await websocket.send_json({"type": "disconnect", "reason": "No ping received for 30 seconds"})

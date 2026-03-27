@@ -2,8 +2,6 @@
 
 import uuid
 
-import pytest
-
 
 class TestGetProfile:
     def test_get_my_profile(self, client, auth_header):

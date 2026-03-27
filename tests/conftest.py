@@ -4,10 +4,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+import app.models  # noqa: F401 — ensure all models are loaded for relationship resolution
 from app.database import Base
 from app.dependencies import get_db
 from app.main import app as fastapi_app
-import app.models  # noqa: F401 — ensure all models are loaded for relationship resolution
 
 SQLALCHEMY_DATABASE_URL = "sqlite://"
 
@@ -66,7 +66,7 @@ def auth_header(registered_user):
 @pytest.fixture
 def sample_track(db):
     """Create a beginner track with one challenge."""
-    from app.models.challenge import Track, Challenge, Difficulty
+    from app.models.challenge import Challenge, Difficulty, Track
 
     track = Track(
         title="REST Fundamentals",

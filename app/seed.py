@@ -6,12 +6,11 @@ Usage:
 
 from sqlalchemy.orm import Session
 
-from app.database import SessionLocal, engine, Base
-from app.models.challenge import Challenge, Difficulty, Track
-from app.models.gamification import Badge
 # Import all models so tables are created
 import app.models  # noqa: F401
-
+from app.database import Base, SessionLocal, engine
+from app.models.challenge import Challenge, Difficulty, Track
+from app.models.gamification import Badge
 
 TRACKS = [
     {

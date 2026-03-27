@@ -3,12 +3,11 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.crud.challenge import get_all_tracks, get_track_by_id, get_challenges_by_track
-from app.crud.submission import count_user_solved_in_track, has_solved_challenge, count_user_solved_by_difficulty
-from app.crud.challenge import count_challenges_by_difficulty
+from app.crud.challenge import count_challenges_by_difficulty, get_all_tracks, get_challenges_by_track, get_track_by_id
+from app.crud.submission import count_user_solved_by_difficulty, count_user_solved_in_track, has_solved_challenge
 from app.dependencies import get_current_user, get_db
 from app.models.user import User
-from app.schemas.challenge import TrackResponse, ChallengeListItem
+from app.schemas.challenge import ChallengeListItem, TrackResponse
 
 router = APIRouter(prefix="/api/v1/tracks", tags=["Tracks"])
 

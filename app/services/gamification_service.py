@@ -11,7 +11,6 @@ from app.models.gamification import Badge, UserBadge, UserTrackProgress
 from app.models.submission import Submission
 from app.models.user import User
 
-
 # ---------- Streak management ----------
 
 def update_streak(db: Session, user: User) -> None:

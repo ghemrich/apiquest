@@ -107,8 +107,10 @@ def unregister_eventbus_consumers():
 async def _run_kafka_consumer(topic: str, handler, group_id: str):
     """Run a Kafka consumer for a single topic in a loop."""
     try:
-        from aiokafka import AIOKafkaConsumer
         import json
+
+        from aiokafka import AIOKafkaConsumer
+
         from app.config import settings
 
         consumer = AIOKafkaConsumer(

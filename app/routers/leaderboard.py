@@ -80,8 +80,8 @@ def track_leaderboard(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    from app.models.submission import Submission
     from app.models.challenge import Challenge
+    from app.models.submission import Submission
 
     rows = (
         db.query(

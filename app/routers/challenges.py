@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.crud.challenge import get_challenge_by_id
-from app.crud.gamification import count_hints_revealed, reveal_hint, get_max_hint_revealed
+from app.crud.gamification import count_hints_revealed, get_max_hint_revealed, reveal_hint
 from app.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.challenge import ChallengeResponse, HintResponse

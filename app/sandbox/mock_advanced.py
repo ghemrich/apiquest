@@ -177,7 +177,6 @@ def get_received_webhooks():
 
 
 # --- Flaky service (50% failure rate) ---
-import random
 
 _flaky_counter = 0
 

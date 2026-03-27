@@ -1,10 +1,8 @@
 """Tests for Kafka event bus, WebSocket manager, and WebSocket endpoints."""
 
 import asyncio
-import json
 import uuid
 
-import pytest
 from fastapi.testclient import TestClient
 
 from app.kafka.events import (
@@ -16,7 +14,6 @@ from app.kafka.events import (
 )
 from app.kafka.producer import EventBus, emit_event, event_bus
 from app.kafka.websocket_manager import ConnectionManager
-
 
 # ---------- Event Bus tests ----------
 

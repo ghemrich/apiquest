@@ -1,12 +1,10 @@
 """Tests for gamification service and leaderboard."""
 
-import uuid
 from datetime import date, timedelta
 
 from app.models.challenge import Challenge, Difficulty, Track
 from app.models.gamification import Badge
 from app.services.gamification_service import (
-    check_and_award_badges,
     update_streak,
     update_track_progress,
 )

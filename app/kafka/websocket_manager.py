@@ -1,6 +1,5 @@
 """WebSocket connection manager — manages active connections for real-time updates."""
 
-import asyncio
 import json
 import logging
 from typing import Any
