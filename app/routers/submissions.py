@@ -13,6 +13,11 @@ from app.crud.submission import (
 from app.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.submission import PartialMatch, SubmissionCreate, SubmissionResponse
+from app.services.gamification_service import (
+    check_and_award_badges,
+    update_streak,
+    update_track_progress,
+)
 from app.services.validation_engine import validate_submission
 
 router = APIRouter(prefix="/api/v1/challenges", tags=["Submissions"])
@@ -88,6 +93,12 @@ def submit_solution(
         current_user.total_points += points_earned
         db.add(current_user)
 
+        # Gamification: streak, track progress
+        update_streak(db, current_user)
+        update_track_progress(db, current_user.id, challenge.track_id)
+    else:
+        newly_earned = []
+
     # Save submission
     create_submission(
         db=db,
@@ -104,7 +115,9 @@ def submit_solution(
         feedback=result.feedback,
     )
 
+    # Badge check after submission is saved (so solved count is correct)
     if result.is_correct:
+        newly_earned = check_and_award_badges(db, current_user.id)
         next_ch = get_next_challenge(db, challenge)
         next_challenge_url = f"GET /api/v1/challenges/{next_ch.id}" if next_ch else None
 
@@ -114,7 +127,7 @@ def submit_solution(
             points_earned=points_earned,
             first_attempt_bonus=attempt_number == 1,
             total_points=current_user.total_points,
-            badges_earned=[],
+            badges_earned=newly_earned,
             next_challenge=next_challenge_url,
         )
 

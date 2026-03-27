@@ -1,0 +1,318 @@
+"""Seed script — populates tracks, challenges, and badges.
+
+Usage:
+    python -m app.seed
+"""
+
+from sqlalchemy.orm import Session
+
+from app.database import SessionLocal, engine, Base
+from app.models.challenge import Challenge, Difficulty, Track
+from app.models.gamification import Badge
+# Import all models so tables are created
+import app.models  # noqa: F401
+
+
+TRACKS = [
+    {
+        "title": "REST Fundamentals",
+        "description": "Learn the basics of RESTful APIs — methods, paths, status codes, and payloads.",
+        "difficulty": Difficulty.beginner,
+        "order_index": 1,
+    },
+    {
+        "title": "Query Mastery",
+        "description": "Master query parameters — filtering, pagination, sorting, and field selection.",
+        "difficulty": Difficulty.beginner,
+        "order_index": 2,
+    },
+    {
+        "title": "Auth & Security",
+        "description": "Explore authentication, authorization, API keys, rate limits, and CORS.",
+        "difficulty": Difficulty.intermediate,
+        "order_index": 3,
+    },
+    {
+        "title": "Data Relationships",
+        "description": "Navigate nested resources, eager loading, many-to-many, and cascade operations.",
+        "difficulty": Difficulty.intermediate,
+        "order_index": 4,
+    },
+    {
+        "title": "Error Detective",
+        "description": "Debug broken APIs — typos, wrong methods, encoding, versioning, race conditions.",
+        "difficulty": Difficulty.advanced,
+        "order_index": 5,
+    },
+    {
+        "title": "Real-Time APIs",
+        "description": "Work with WebSockets, Server-Sent Events, heartbeats, and channel subscriptions.",
+        "difficulty": Difficulty.advanced,
+        "order_index": 6,
+    },
+    {
+        "title": "System Design",
+        "description": "Caching, batch operations, async processing, idempotency, webhooks, and resilience.",
+        "difficulty": Difficulty.expert,
+        "order_index": 7,
+    },
+]
+
+
+# Challenges per track. Each entry: (title, desc, method, path, headers, query, body, points, hints, sandbox, time_limit)
+CHALLENGES = {
+    "REST Fundamentals": [
+        ("Hello, API", "Make your first API request.", "GET", "/api/v1/sandbox/books/", None, None, None, 50,
+         ["What's the simplest HTTP request?", "No body, no headers needed", "Try the root of the books API", "The path ends with a slash", "GET /api/v1/sandbox/books/"],
+         "/api/v1/sandbox/books", None),
+        ("The Library", "Retrieve the list of all books.", "GET", "/api/v1/sandbox/books", None, None, None, 50,
+         ["Books are at the /books path", "No query params needed", "Just a simple GET", "GET /api/v1/sandbox/books", "Try it without the trailing slash"],
+         "/api/v1/sandbox/books", None),
+        ("Specific Retrieval", "Get a single book by its ID.", "GET", "/api/v1/sandbox/books/42", None, None, None, 50,
+         ["Append the book ID to the path", "The book ID is 42", "GET /books/42", "Look for API Design Patterns", "GET /api/v1/sandbox/books/42"],
+         "/api/v1/sandbox/books", None),
+        ("Adding to the Shelf", "Create a new book using POST.", "POST", "/api/v1/sandbox/books", {"Content-Type": "application/json"}, None,
+         {"title": "Clean Code", "author": "Robert C. Martin", "year": 2008}, 50,
+         ["Use POST method", "You need Content-Type header", "application/json", "Body needs title, author, year", "POST /api/v1/sandbox/books with JSON body"],
+         "/api/v1/sandbox/books", None),
+        ("Fix the Typo", "Update book 42 with PUT.", "PUT", "/api/v1/sandbox/books/42", {"Content-Type": "application/json"}, None,
+         {"title": "API Design Patterns", "author": "JJ Geewax", "year": 2021}, 50,
+         ["PUT replaces the entire resource", "Need Content-Type header", "All fields are required", "PUT /books/42", "Body: title, author, year for book 42"],
+         "/api/v1/sandbox/books", None),
+        ("Clearing the Shelf", "Delete a book.", "DELETE", "/api/v1/sandbox/books/99", None, None, None, 50,
+         ["Which HTTP method removes resources?", "DELETE method", "You need a specific book ID", "Try book 99", "DELETE /api/v1/sandbox/books/99"],
+         "/api/v1/sandbox/books", None),
+        ("Status Code Detective", "Submit the right status codes.", "POST", "/api/v1/sandbox/books/status-check", None, None,
+         {"codes": [404, 400, 405]}, 75,
+         ["What status code means Not Found?", "What about Bad Request?", "Method Not Allowed is which code?", "404, 400, 405", "POST with codes array"],
+         "/api/v1/sandbox/books", None),
+        ("The Content-Type Mystery", "Set the right header for JSON.", "POST", "/api/v1/sandbox/books", {"Content-Type": "application/json"}, None,
+         {"title": "Test Book", "author": "Test Author", "year": 2026}, 75,
+         ["APIs need to know what format you're sending", "The header name is Content-Type", "JSON content type is application/json", "Include it in headers", "Content-Type: application/json"],
+         "/api/v1/sandbox/books", None),
+    ],
+    "Query Mastery": [
+        ("Filter by Status", "Filter tasks by their status.", "GET", "/api/v1/sandbox/tasks", None, {"status": "completed"}, None, 50,
+         ["Use a query parameter", "The parameter name is status", "completed is one valid status", "?status=completed", "GET /api/v1/sandbox/tasks?status=completed"],
+         "/api/v1/sandbox/tasks", None),
+        ("Page Turner", "Use pagination to get page 3.", "GET", "/api/v1/sandbox/tasks", None, {"page": "3", "per_page": "10"}, None, 50,
+         ["Pagination uses page and per_page", "page=3 gets the third page", "per_page controls items per page", "?page=3&per_page=10", "Combine both parameters"],
+         "/api/v1/sandbox/tasks", None),
+        ("Sort It Out", "Sort tasks by creation date descending.", "GET", "/api/v1/sandbox/tasks", None, {"sort": "-created_at"}, None, 50,
+         ["The sort parameter controls ordering", "Prefix with - for descending", "Sort by created_at field", "?sort=-created_at", "Minus means newest first"],
+         "/api/v1/sandbox/tasks", None),
+        ("Search Party", "Search for tasks containing a keyword.", "GET", "/api/v1/sandbox/tasks", None, {"search": "database"}, None, 50,
+         ["There's a search parameter", "It does partial string matching", "Search for 'database'", "?search=database", "Case-insensitive search"],
+         "/api/v1/sandbox/tasks", None),
+        ("Combining Powers", "Use multiple query params together.", "GET", "/api/v1/sandbox/tasks", None,
+         {"status": "completed", "search": "API", "sort": "-priority", "page": "2", "per_page": "5"}, None, 75,
+         ["Combine status, search, sort, and pagination", "status=completed&search=API", "Add sort=-priority", "page=2&per_page=5", "Chain all 5 parameters with &"],
+         "/api/v1/sandbox/tasks", None),
+        ("Field Selection", "Request only specific fields.", "GET", "/api/v1/sandbox/tasks", None, {"fields": "title,status"}, None, 75,
+         ["The fields parameter selects which data to return", "Comma-separated list of field names", "fields=title,status", "Only title and status columns", "Sparse fieldsets reduce payload size"],
+         "/api/v1/sandbox/tasks", None),
+    ],
+    "Auth & Security": [
+        ("The Locked Door", "Log in to get an access token.", "POST", "/api/v1/sandbox/mock-auth/login", {"Content-Type": "application/json"}, None,
+         {"username": "player1", "password": "quest123"}, 100,
+         ["POST to the login endpoint", "Send credentials as JSON", "Username is player1", "Password is quest123", "Content-Type: application/json"],
+         "/api/v1/sandbox/mock-auth", None),
+        ("Bearer of Tokens", "Use your token to access a protected route.", "GET", "/api/v1/sandbox/mock-auth/profile", {"Authorization": "Bearer <access_token>"}, None, None, 100,
+         ["The profile endpoint needs authentication", "Use the Authorization header", "Bearer token format", "Authorization: Bearer <your_token>", "Get a token from /login first"],
+         "/api/v1/sandbox/mock-auth", None),
+        ("Token Expired", "Refresh an expired token.", "POST", "/api/v1/sandbox/mock-auth/refresh", {"Content-Type": "application/json"}, None,
+         {"refresh_token": "<refresh_token>"}, 100,
+         ["Tokens expire — you need to refresh", "POST to /refresh endpoint", "Send the refresh_token in body", "You got it from /login", "Content-Type: application/json"],
+         "/api/v1/sandbox/mock-auth", None),
+        ("Role Play", "Access admin-only endpoint.", "GET", "/api/v1/sandbox/mock-auth/admin/users", {"Authorization": "Bearer <admin_token>"}, None, None, 100,
+         ["This endpoint requires admin role", "player1 won't work here", "Log in as admin1", "Password: adminquest123", "Authorization: Bearer <admin_token>"],
+         "/api/v1/sandbox/mock-auth", None),
+        ("API Key vs Token", "Use an API key for external data.", "GET", "/api/v1/sandbox/mock-auth/external/data", {"X-API-Key": "sk_test_abc123xyz"}, None, None, 100,
+         ["This endpoint uses API keys, not Bearer tokens", "The header name is X-API-Key", "The key starts with sk_test_", "sk_test_abc123xyz", "Different auth mechanisms for different use cases"],
+         "/api/v1/sandbox/mock-auth", None),
+        ("Rate Limited", "Discover rate limit headers.", "GET", "/api/v1/sandbox/mock-auth/limited", {"Authorization": "Bearer <token>"}, None, None, 100,
+         ["This endpoint has rate limiting", "Check the response headers", "X-RateLimit-Limit shows the max", "X-RateLimit-Remaining shows what's left", "Retry-After tells you when to try again"],
+         "/api/v1/sandbox/mock-auth", None),
+        ("The CORS Preflight", "Send an OPTIONS request.", "OPTIONS", "/api/v1/sandbox/mock-auth/cors-test", None, None, None, 100,
+         ["CORS uses preflight requests", "The HTTP method is OPTIONS", "Browsers send this automatically", "Check Access-Control-Allow-Origin in response", "OPTIONS /api/v1/sandbox/mock-auth/cors-test"],
+         "/api/v1/sandbox/mock-auth", None),
+        ("Input Sanitization", "Test input validation.", "POST", "/api/v1/sandbox/mock-auth/users", None, None,
+         {"name": "<script>alert('hacked')</script>"}, 100,
+         ["APIs should validate input", "Try sending HTML/script tags", "XSS protection rejects dangerous input", "Send a name with <script> tags", "The API should return 400"],
+         "/api/v1/sandbox/mock-auth", None),
+    ],
+    "Data Relationships": [
+        ("Nested Resources", "Get a user's projects.", "GET", "/api/v1/sandbox/users-data/7/projects", None, None, None, 100,
+         ["Resources can be nested under others", "User 7 has projects", "/users-data/{user_id}/projects", "GET request, no body needed", "GET /api/v1/sandbox/users-data/7/projects"],
+         "/api/v1/sandbox/users-data", None),
+        ("Deep Nesting", "Get tasks for a specific project of a user.", "GET", "/api/v1/sandbox/users-data/7/projects/3/tasks", None, None, None, 100,
+         ["Go deeper: user → project → tasks", "Three levels of nesting", "User 7, Project 3", "/7/projects/3/tasks", "GET /api/v1/sandbox/users-data/7/projects/3/tasks"],
+         "/api/v1/sandbox/users-data", None),
+        ("Include Related Data", "Use eager loading to include tasks.", "GET", "/api/v1/sandbox/users-data/projects/3", None, {"include": "tasks"}, None, 100,
+         ["The include parameter embeds related data", "include=tasks adds tasks to the response", "Alternative to nested resource URLs", "?include=tasks", "GET /projects/3?include=tasks"],
+         "/api/v1/sandbox/users-data", None),
+        ("Creating with Relationships", "Create a task linked to a project.", "POST", "/api/v1/sandbox/users-data/tasks", None, None,
+         {"title": "Write unit tests", "project_id": 3, "priority": "high"}, 100,
+         ["POST to create a new task", "Link it to project 3 via project_id", "Include title and priority", "project_id: 3", "POST /api/v1/sandbox/users-data/tasks"],
+         "/api/v1/sandbox/users-data", None),
+        ("Many-to-Many", "Add a user to a team.", "POST", "/api/v1/sandbox/users-data/teams/2/members", None, None,
+         {"user_id": 5}, 100,
+         ["Teams and users are many-to-many", "POST to add a member", "/teams/2/members", "Send user_id in body", "POST with {\"user_id\": 5}"],
+         "/api/v1/sandbox/users-data", None),
+        ("Cascade Effects", "Delete a project and observe cascading.", "DELETE", "/api/v1/sandbox/users-data/projects/3", None, None, None, 100,
+         ["DELETE removes the resource", "What happens to child resources?", "Tasks belong to the project", "Cascade delete removes children too", "DELETE /api/v1/sandbox/users-data/projects/3"],
+         "/api/v1/sandbox/users-data", None),
+    ],
+    "Error Detective": [
+        ("The Silent Failure", "Fix the typo in the query param.", "GET", "/api/v1/sandbox/broken/items", None, {"status": "active"}, None, 150,
+         ["The API has a subtle bug", "Check what happens with staus vs status", "One is a typo that silently fails", "Use the correct spelling: status", "?status=active with correct spelling"],
+         "/api/v1/sandbox/broken", None),
+        ("The Wrong Method", "Use the right HTTP method.", "PUT", "/api/v1/sandbox/broken/items/42", {"Content-Type": "application/json"}, None,
+         {"name": "Updated Item", "status": "active"}, 150,
+         ["POST returns 405 Method Not Allowed", "Which method is for updates?", "PUT replaces the resource", "Content-Type: application/json", "PUT /api/v1/sandbox/broken/items/42"],
+         "/api/v1/sandbox/broken", None),
+        ("Missing Required Fields", "Send all required fields.", "POST", "/api/v1/sandbox/broken/orders", None, None,
+         {"product": "Widget", "quantity": 5, "shipping_address": "123 Main St"}, 150,
+         ["Read the 422 error carefully", "It tells you which field is missing", "shipping_address is required", "Include product, quantity, and shipping_address", "All three fields are mandatory"],
+         "/api/v1/sandbox/broken", None),
+        ("The Encoding Trap", "URL-encode spaces in query params.", "GET", "/api/v1/sandbox/broken/search", None, {"q": "hello world"}, None, 150,
+         ["Spaces in URLs need encoding", "%20 or + replaces spaces", "q=hello%20world", "URL encoding is essential", "The query is 'hello world'"],
+         "/api/v1/sandbox/broken", None),
+        ("Version Mismatch", "Use the correct API version.", "GET", "/api/v1/sandbox/broken/v2/products/1", None, None, None, 150,
+         ["APIs evolve over versions", "v1 has fewer fields than v2", "v2 includes description and category", "Use /v2/ not /v1/", "GET /api/v1/sandbox/broken/v2/products/1"],
+         "/api/v1/sandbox/broken", None),
+        ("The Timeout", "Add a limit to avoid timeout.", "GET", "/api/v1/sandbox/broken/heavy-data", None, {"limit": "50"}, None, 150,
+         ["Without a limit, the request times out", "504 means Gateway Timeout", "Add a limit parameter", "Keep it under 100", "?limit=50"],
+         "/api/v1/sandbox/broken", None),
+        ("Race Condition", "Use ETags for safe updates.", "PUT", "/api/v1/sandbox/broken/documents/1",
+         {"If-Match": '"<etag>"', "Content-Type": "application/json"}, None,
+         {"title": "Updated Document"}, 150,
+         ["GET the document first to get the ETag", "Use If-Match header with the ETag", "This prevents race conditions", "412 means your ETag is stale", "PUT with If-Match: \"<etag>\""],
+         "/api/v1/sandbox/broken", None),
+        ("The Broken Chain", "Complete a 3-step API chain.", "GET", "/api/v1/sandbox/broken/step1", None, None, None, 150,
+         ["Step 1 gives you a token", "Step 2 uses that token", "Step 3 uses the ID from step 2", "Tokens expire in 30 seconds", "GET /step1 → /step2?token=X → /step3/{id}"],
+         "/api/v1/sandbox/broken", None),
+    ],
+    "Real-Time APIs": [
+        ("Your First WebSocket", "Connect and send a message.", "GET", "ws://host/api/v1/sandbox/stream/chat", None, None,
+         {"text": "Hello from API Quest!"}, 150,
+         ["WebSockets use ws:// protocol", "Connect to /stream/chat", "Send a JSON message", "{\"text\": \"Hello from API Quest!\"}", "The server echoes your message back"],
+         "/api/v1/sandbox/stream", None),
+        ("Listen and Respond", "Answer a math quiz in time.", "GET", "ws://host/api/v1/sandbox/stream/quiz", None, None, None, 150,
+         ["Connect and wait for a question", "You have 5 seconds to answer", "Send {\"answer\": <number>}", "It's a multiplication question", "Calculate and respond quickly"],
+         "/api/v1/sandbox/stream", None),
+        ("Server-Sent Events", "Subscribe to price updates.", "GET", "/api/v1/sandbox/stream/prices", {"Accept": "text/event-stream"}, None, None, 150,
+         ["SSE uses regular HTTP GET", "Set Accept: text/event-stream", "The server pushes events to you", "Events are prefixed with 'data:'", "Unidirectional: server → client"],
+         "/api/v1/sandbox/stream", None),
+        ("Heartbeat", "Keep a WebSocket connection alive.", "GET", "ws://host/api/v1/sandbox/stream/heartbeat", None, None, None, 150,
+         ["The server drops idle connections", "Send ping messages to stay alive", "{\"type\": \"ping\"}", "Every 15 seconds", "Server responds with {\"type\": \"pong\"}"],
+         "/api/v1/sandbox/stream", None),
+        ("Channel Subscription", "Subscribe to a channel.", "GET", "ws://host/api/v1/sandbox/stream/channels", None, None,
+         {"action": "subscribe", "channel": "tech"}, 150,
+         ["Connect to /stream/channels", "Send a subscribe message", "{\"action\": \"subscribe\", \"channel\": \"tech\"}", "Channels: sports, tech, finance", "You'll receive channel notifications"],
+         "/api/v1/sandbox/stream", None),
+    ],
+    "System Design": [
+        ("Cache It", "Use ETags for conditional requests.", "GET", "/api/v1/sandbox/advanced/expensive-data",
+         {"If-None-Match": '"<etag>"'}, None, None, 200,
+         ["GET the data first to see the ETag", "Use If-None-Match header", "304 means data hasn't changed", "Saves bandwidth and processing", "If-None-Match: \"<etag>\""],
+         "/api/v1/sandbox/advanced", None),
+        ("Bulk Operations", "Create multiple items at once.", "POST", "/api/v1/sandbox/advanced/items/batch",
+         {"Content-Type": "application/json"}, None,
+         {"items": [{"name": "Item 1"}, {"name": "Item 2"}, {"name": "Item 3"}]}, 200,
+         ["POST to /items/batch", "Send an items array", "Each item needs a name", "Max 100 items per batch", "Response shows created count and errors"],
+         "/api/v1/sandbox/advanced", None),
+        ("Async Processing", "Start and poll an async report.", "POST", "/api/v1/sandbox/advanced/reports",
+         {"Content-Type": "application/json"}, None,
+         {"type": "sales", "period": "Q1"}, 200,
+         ["POST starts the report generation", "202 Accepted means it's processing", "Poll the status URL", "Status: pending → processing → complete", "Download when complete"],
+         "/api/v1/sandbox/advanced", None),
+        ("Idempotency", "Use idempotency keys for safe retries.", "POST", "/api/v1/sandbox/advanced/payments",
+         {"Content-Type": "application/json", "Idempotency-Key": "unique-request-id-123"}, None,
+         {"amount": 99.99, "currency": "USD"}, 200,
+         ["What if a payment request is sent twice?", "Idempotency keys prevent duplicates", "Add Idempotency-Key header", "Same key = same response (no duplicate charge)", "Idempotency-Key: unique-request-id-123"],
+         "/api/v1/sandbox/advanced", None),
+        ("Webhook Receiver", "Register and receive webhooks.", "POST", "/api/v1/sandbox/advanced/webhooks/register",
+         {"Content-Type": "application/json"}, None,
+         {"url": "/api/v1/sandbox/advanced/webhooks/echo", "events": ["order.created"]}, 200,
+         ["Register a webhook URL first", "POST to /webhooks/register", "Listen for order.created events", "Then create an order to trigger it", "Check /webhooks/echo/received"],
+         "/api/v1/sandbox/advanced", None),
+        ("The Circuit Breaker", "Handle a flaky service.", "GET", "/api/v1/sandbox/advanced/flaky-service", None, None, None, 200,
+         ["This service fails 50% of the time", "Circuit breakers detect failure patterns", "States: closed → open → half-open", "Closed: requests pass through", "Open: requests are blocked until recovery"],
+         "/api/v1/sandbox/advanced", None),
+    ],
+}
+
+
+BADGES = [
+    {"name": "First Steps", "description": "Complete your first challenge", "criteria_type": "challenge_count", "criteria_value": 1},
+    {"name": "REST Rookie", "description": "Complete the REST Fundamentals track", "criteria_type": "track_complete", "criteria_value": 1},
+    {"name": "Query Wizard", "description": "Complete the Query Mastery track", "criteria_type": "track_complete", "criteria_value": 1},
+    {"name": "Auth Master", "description": "Complete the Auth & Security track", "criteria_type": "track_complete", "criteria_value": 1},
+    {"name": "Data Explorer", "description": "Complete the Data Relationships track", "criteria_type": "track_complete", "criteria_value": 1},
+    {"name": "Bug Hunter", "description": "Solve 5 Error Detective challenges", "criteria_type": "challenge_count_in_track", "criteria_value": 5},
+    {"name": "Real-Time Pro", "description": "Complete the Real-Time APIs track", "criteria_type": "track_complete", "criteria_value": 1},
+    {"name": "System Architect", "description": "Complete the System Design track", "criteria_type": "track_complete", "criteria_value": 1},
+    {"name": "Speed Demon", "description": "Solve 3 challenges under the time limit", "criteria_type": "speed_solves", "criteria_value": 3},
+    {"name": "Streak Champion", "description": "Maintain a 7-day streak", "criteria_type": "streak", "criteria_value": 7},
+    {"name": "Perfectionist", "description": "Solve 10 challenges on first attempt", "criteria_type": "first_attempt_solves", "criteria_value": 10},
+    {"name": "Track Titan", "description": "Complete all tracks", "criteria_type": "all_tracks_complete", "criteria_value": 7},
+    {"name": "Beginner Graduate", "description": "Complete all Beginner tier challenges", "criteria_type": "tier_complete", "criteria_value": 14},
+    {"name": "Intermediate Graduate", "description": "Complete all Intermediate tier challenges", "criteria_type": "tier_complete", "criteria_value": 14},
+    {"name": "Advanced Graduate", "description": "Complete all Advanced tier challenges", "criteria_type": "tier_complete", "criteria_value": 13},
+    {"name": "Quest Master", "description": "Complete every challenge in the game", "criteria_type": "all_challenges_complete", "criteria_value": 47},
+]
+
+
+def seed_database(db: Session) -> None:
+    """Populate tracks, challenges, and badges if they don't exist yet."""
+
+    # Skip if already seeded
+    if db.query(Track).first():
+        print("Database already seeded — skipping.")
+        return
+
+    # Create tracks
+    track_objects: dict[str, Track] = {}
+    for t in TRACKS:
+        track = Track(**t)
+        db.add(track)
+        db.flush()
+        track_objects[t["title"]] = track
+
+    # Create challenges
+    for track_title, challenges in CHALLENGES.items():
+        track = track_objects[track_title]
+        for idx, c in enumerate(challenges):
+            title, desc, method, path, headers, query, body, points, hints, sandbox, time_limit = c
+            challenge = Challenge(
+                track_id=track.id,
+                title=title,
+                description=desc,
+                difficulty=track.difficulty,
+                points_value=points,
+                expected_method=method,
+                expected_path=path,
+                expected_headers=headers,
+                expected_query_params=query,
+                expected_body=body,
+                hints=hints,
+                order_index=idx + 1,
+                sandbox_endpoint=sandbox,
+                time_limit_seconds=time_limit,
+            )
+            db.add(challenge)
+
+    # Create badges
+    for b in BADGES:
+        badge = Badge(**b)
+        db.add(badge)
+
+    db.commit()
+    print(f"Seeded {len(TRACKS)} tracks, {sum(len(c) for c in CHALLENGES.values())} challenges, {len(BADGES)} badges.")
+
+
+if __name__ == "__main__":
+    Base.metadata.create_all(bind=engine)
+    with SessionLocal() as db:
+        seed_database(db)
