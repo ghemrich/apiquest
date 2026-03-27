@@ -107,4 +107,4 @@ class TestSubmitSolution:
         })
         resp = client.get("/api/v1/tracks", headers=auth_header)
         data = resp.json()
-        assert data[0]["your_progress"] == "1/2 completed"
+        assert data["tracks"][0]["your_progress"] == "1/2 completed"

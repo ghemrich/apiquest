@@ -3,11 +3,13 @@ class TestListTracks:
         resp = client.get("/api/v1/tracks", headers=auth_header)
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data) == 1
-        assert data[0]["title"] == "REST Fundamentals"
-        assert data[0]["challenge_count"] == 2
-        assert data[0]["your_progress"] == "0/2 completed"
-        assert data[0]["unlocked"] is True
+        assert "tracks" in data
+        tracks = data["tracks"]
+        assert len(tracks) == 1
+        assert tracks[0]["title"] == "REST Fundamentals"
+        assert tracks[0]["challenge_count"] == 2
+        assert tracks[0]["your_progress"] == "0/2 completed"
+        assert tracks[0]["unlocked"] is True
 
     def test_list_tracks_no_auth(self, client):
         resp = client.get("/api/v1/tracks")

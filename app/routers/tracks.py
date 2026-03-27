@@ -7,7 +7,7 @@ from app.crud.challenge import count_challenges_by_difficulty, get_all_tracks, g
 from app.crud.submission import count_user_solved_by_difficulty, count_user_solved_in_track, has_solved_challenge
 from app.dependencies import get_current_user, get_db
 from app.models.user import User
-from app.schemas.challenge import ChallengeListItem, TrackResponse
+from app.schemas.challenge import ChallengeListItem, TrackResponse, TracksListResponse
 
 router = APIRouter(prefix="/api/v1/tracks", tags=["Tracks"])
 
@@ -40,7 +40,7 @@ def _is_track_unlocked(db: Session, user: User, difficulty: str) -> tuple[bool, 
     return False, message
 
 
-@router.get("", response_model=list[TrackResponse])
+@router.get("", response_model=TracksListResponse)
 def list_tracks(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -63,7 +63,7 @@ def list_tracks(
                 unlock_requirement=req,
             )
         )
-    return result
+    return TracksListResponse(tracks=result)
 
 
 @router.get("/{track_id}")

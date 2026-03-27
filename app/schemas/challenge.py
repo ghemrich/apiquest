@@ -16,6 +16,10 @@ class TrackResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class TracksListResponse(BaseModel):
+    tracks: list[TrackResponse]
+
+
 class ChallengeListItem(BaseModel):
     id: uuid.UUID
     title: str
