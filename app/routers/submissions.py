@@ -1,6 +1,7 @@
+import asyncio
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.crud.challenge import get_challenge_by_id, get_next_challenge
@@ -11,6 +12,21 @@ from app.crud.submission import (
     has_solved_challenge,
 )
 from app.dependencies import get_current_user, get_db
+from app.kafka.events import (
+    badge_earned_event,
+    challenge_solved_event,
+    challenge_submitted_event,
+    streak_updated_event,
+    track_completed_event,
+)
+from app.kafka.producer import (
+    TOPIC_BADGE_EARNED,
+    TOPIC_CHALLENGE_SOLVED,
+    TOPIC_CHALLENGE_SUBMITTED,
+    TOPIC_STREAK_UPDATED,
+    TOPIC_TRACK_COMPLETED,
+    emit_event,
+)
 from app.models.user import User
 from app.schemas.submission import PartialMatch, SubmissionCreate, SubmissionResponse
 from app.services.gamification_service import (
@@ -51,10 +67,21 @@ def _calculate_points(
     return max(int(final), int(minimum))
 
 
+def _fire_events(events: list[tuple[str, dict]]):
+    """Run emit_event calls in an event loop (for use in BackgroundTasks)."""
+    loop = asyncio.new_event_loop()
+    try:
+        for topic, event in events:
+            loop.run_until_complete(emit_event(topic, event))
+    finally:
+        loop.close()
+
+
 @router.post("/{challenge_id}/submit", response_model=SubmissionResponse)
 def submit_solution(
     challenge_id: uuid.UUID,
     data: SubmissionCreate,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -95,7 +122,7 @@ def submit_solution(
 
         # Gamification: streak, track progress
         update_streak(db, current_user)
-        update_track_progress(db, current_user.id, challenge.track_id)
+        track_progress = update_track_progress(db, current_user.id, challenge.track_id)
     else:
         newly_earned = []
 
@@ -118,6 +145,59 @@ def submit_solution(
     # Badge check after submission is saved (so solved count is correct)
     if result.is_correct:
         newly_earned = check_and_award_badges(db, current_user.id)
+
+        # Collect events to emit in background
+        pending_events: list[tuple[str, dict]] = []
+
+        # challenge.submitted
+        pending_events.append((
+            TOPIC_CHALLENGE_SUBMITTED,
+            challenge_submitted_event(current_user.id, challenge.id, True),
+        ))
+
+        # challenge.solved
+        pending_events.append((
+            TOPIC_CHALLENGE_SOLVED,
+            challenge_solved_event(
+                user_id=current_user.id,
+                username=current_user.username,
+                challenge_id=challenge.id,
+                points_earned=points_earned,
+                total_points=current_user.total_points,
+                badges_earned=newly_earned,
+            ),
+        ))
+
+        # streak.updated
+        pending_events.append((
+            TOPIC_STREAK_UPDATED,
+            streak_updated_event(
+                user_id=current_user.id,
+                current_streak=current_user.current_streak,
+                longest_streak=current_user.longest_streak,
+            ),
+        ))
+
+        # badge.earned (one event per badge)
+        for badge_name in newly_earned:
+            pending_events.append((
+                TOPIC_BADGE_EARNED,
+                badge_earned_event(user_id=current_user.id, badge_name=badge_name),
+            ))
+
+        # track.completed
+        if track_progress.completed_at is not None:
+            track = challenge.track
+            pending_events.append((
+                TOPIC_TRACK_COMPLETED,
+                track_completed_event(
+                    user_id=current_user.id,
+                    track_id=challenge.track_id,
+                    track_title=track.title if track else "Unknown",
+                ),
+            ))
+
+        background_tasks.add_task(_fire_events, pending_events)
         next_ch = get_next_challenge(db, challenge)
         next_challenge_url = f"GET /api/v1/challenges/{next_ch.id}" if next_ch else None
 
@@ -132,6 +212,10 @@ def submit_solution(
         )
 
     # Incorrect
+    background_tasks.add_task(
+        _fire_events,
+        [(TOPIC_CHALLENGE_SUBMITTED, challenge_submitted_event(current_user.id, challenge.id, False))],
+    )
     hints_total = len(challenge.hints) if challenge.hints else 0
     return SubmissionResponse(
         is_correct=False,
