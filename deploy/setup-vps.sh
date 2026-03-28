@@ -57,7 +57,8 @@ echo "==> Installing Docker"
 if ! command -v docker &>/dev/null; then
   apt-get install -y ca-certificates curl gnupg
   install -m 0755 -d /etc/apt/keyrings
-  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  rm -f /etc/apt/keyrings/docker.gpg
+  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --batch --yes --dearmor -o /etc/apt/keyrings/docker.gpg
   chmod a+r /etc/apt/keyrings/docker.gpg
 
   # Detect distro (works for Ubuntu and Debian)
@@ -83,15 +84,10 @@ apt-get install -y certbot python3-certbot-nginx
 
 # ── Firewall ───────────────────────────────────────────────────
 echo "==> Configuring UFW firewall"
+apt-get install -y ufw
 ufw allow OpenSSH
 ufw allow 'Nginx Full'
 ufw --force enable
-
-# ── Harden SSH ─────────────────────────────────────────────────
-echo "==> Disabling SSH password authentication"
-sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
-sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
-systemctl restart sshd
 
 # ── Clone repo ─────────────────────────────────────────────────
 echo "==> Cloning repository"
@@ -146,6 +142,24 @@ fi
 echo "==> Starting API Quest"
 cd "${APP_DIR}"
 sudo -u "${DEPLOY_USER}" docker compose -f docker-compose.prod.yml up -d --build
+
+# ── Harden SSH (last step — verify deploy access first) ───────
+echo "==> Verifying deploy user SSH access before hardening"
+if sudo -u "${DEPLOY_USER}" test -f "/home/${DEPLOY_USER}/.ssh/authorized_keys"; then
+  KEY_COUNT=$(wc -l < "/home/${DEPLOY_USER}/.ssh/authorized_keys")
+  if [[ "$KEY_COUNT" -gt 0 ]]; then
+    echo "    ${KEY_COUNT} SSH key(s) found for ${DEPLOY_USER} — hardening SSH"
+    sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+    sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
+    systemctl restart sshd
+  else
+    echo "    WARNING: No SSH keys for ${DEPLOY_USER} — skipping SSH hardening"
+    echo "    Run: ssh-copy-id deploy@${DOMAIN} then manually harden SSH"
+  fi
+else
+  echo "    WARNING: No authorized_keys for ${DEPLOY_USER} — skipping SSH hardening"
+  echo "    Run: ssh-copy-id deploy@${DOMAIN} then manually harden SSH"
+fi
 
 echo ""
 echo "════════════════════════════════════════════════════════"
