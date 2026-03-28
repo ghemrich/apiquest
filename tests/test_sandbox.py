@@ -72,6 +72,35 @@ class TestBooksAPI:
         assert resp.status_code == 200
         assert resp.json()["all_correct"] is False
 
+    def test_content_type_mystery_correct(self, client):
+        resp = client.post(
+            "/api/v1/sandbox/books/content-type-mystery",
+            json={"title": "Test Book", "author": "Test Author", "year": 2026},
+            headers={"Content-Type": "application/json"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["message"] == "Book accepted!"
+        assert data["book"]["title"] == "Test Book"
+        assert "application/json" in data["content_type_received"]
+
+    def test_content_type_mystery_wrong_type(self, client):
+        resp = client.post(
+            "/api/v1/sandbox/books/content-type-mystery",
+            content=b'{"title": "Test"}',
+            headers={"Content-Type": "text/plain"},
+        )
+        assert resp.status_code == 415
+        assert "text/plain" in resp.json()["detail"]["content_type_received"]
+
+    def test_content_type_mystery_missing_fields(self, client):
+        resp = client.post(
+            "/api/v1/sandbox/books/content-type-mystery",
+            json={"title": "Only Title"},
+            headers={"Content-Type": "application/json"},
+        )
+        assert resp.status_code == 400
+
 
 class TestTasksAPI:
     def test_list_all(self, client):
