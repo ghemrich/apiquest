@@ -85,4 +85,25 @@ def delete_books_collection():
 def status_check(body: dict | None = None):
     if not body or "codes" not in body:
         raise HTTPException(status_code=400, detail="codes array required")
-    return {"valid": True, "codes_acknowledged": body["codes"]}
+    codes = body["codes"]
+    if not isinstance(codes, list) or len(codes) != 3:
+        raise HTTPException(status_code=400, detail="codes must be an array of exactly 3 status codes")
+
+    scenarios = [
+        {"scenario": "Requesting a book that doesn't exist", "expected": 404},
+        {"scenario": "Sending an invalid request body", "expected": 400},
+        {"scenario": "Using PATCH on /books/1", "expected": 405},
+    ]
+    results = []
+    all_correct = True
+    for i, scenario in enumerate(scenarios):
+        correct = codes[i] == scenario["expected"] if i < len(codes) else False
+        if not correct:
+            all_correct = False
+        results.append({
+            "scenario": scenario["scenario"],
+            "your_answer": codes[i] if i < len(codes) else None,
+            "correct": correct,
+            "hint": "Try it yourself and check the status code" if not correct else "Correct!",
+        })
+    return {"all_correct": all_correct, "results": results}

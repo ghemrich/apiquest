@@ -63,9 +63,14 @@ class TestBooksAPI:
         assert resp.status_code == 405
 
     def test_status_check(self, client):
-        resp = client.post("/api/v1/sandbox/books/status-check", json={"codes": [404, 400]})
+        resp = client.post("/api/v1/sandbox/books/status-check", json={"codes": [404, 400, 405]})
         assert resp.status_code == 200
-        assert resp.json()["valid"] is True
+        assert resp.json()["all_correct"] is True
+
+    def test_status_check_wrong_answer(self, client):
+        resp = client.post("/api/v1/sandbox/books/status-check", json={"codes": [200, 201, 204]})
+        assert resp.status_code == 200
+        assert resp.json()["all_correct"] is False
 
 
 class TestTasksAPI:
