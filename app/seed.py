@@ -91,10 +91,6 @@ CHALLENGES = {
          {"codes": [404, 400, 405]}, 75,
          ["Try GET /api/v1/sandbox/books/99999 — what status code do you get?", "Try POSTing garbage to /api/v1/sandbox/books/", "Try PATCH /api/v1/sandbox/books/1", "The three codes are 404, 400, and 405", "POST {\"codes\": [404, 400, 405]} to /api/v1/sandbox/books/status-check"],
          "/api/v1/sandbox/books", None),
-        ("The Content-Type Mystery", 'POST the book "Test Book" by "Test Author" (2026) to /api/v1/sandbox/books/content-type-mystery — the endpoint will tell you what Content-Type it received and whether it accepted your data. Experiment until the server accepts your book.', "POST", "/api/v1/sandbox/books/content-type-mystery", {"Content-Type": "application/json"}, None,
-         {"title": "Test Book", "author": "Test Author", "year": 2026}, 75,
-         ["Try POSTing without any Content-Type header and read the error", "The endpoint shows you what Content-Type it received", "415 means Unsupported Media Type", "JSON content type is application/json", 'Add Content-Type: application/json to your headers'],
-         "/api/v1/sandbox/books", None),
     ],
     "Query Mastery": [
         ("Filter by Status", "Retrieve only the tasks that have been completed.", "GET", "/api/v1/sandbox/tasks/", None, {"status": "completed"}, None, 50,

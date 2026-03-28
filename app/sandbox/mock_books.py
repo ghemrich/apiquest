@@ -81,59 +81,6 @@ def delete_books_collection():
     raise HTTPException(status_code=405, detail="Cannot delete entire collection")
 
 
-@router.post("/content-type-mystery")
-async def content_type_mystery(request: Request):
-    """Challenge endpoint: player must POST a book with the correct Content-Type."""
-    content_type = request.headers.get("content-type", "")
-
-    if not content_type:
-        raise HTTPException(
-            status_code=415,
-            detail={
-                "error": "No Content-Type header detected",
-                "content_type_received": None,
-                "hint": "The server needs to know what format your data is in. "
-                        "Add a Content-Type header to your request.",
-            },
-        )
-
-    if "application/json" not in content_type:
-        raise HTTPException(
-            status_code=415,
-            detail={
-                "error": f"Unsupported Media Type: {content_type}",
-                "content_type_received": content_type,
-                "hint": "The server only understands JSON. "
-                        "What Content-Type value represents JSON data?",
-            },
-        )
-
-    # Content-Type is correct — now validate the body
-    try:
-        body = await request.json()
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid JSON body")
-
-    missing = [f for f in ("title", "author") if not body.get(f)]
-    if missing:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Missing required fields: {', '.join(missing)}",
-        )
-
-    return {
-        "message": "Book accepted!",
-        "book": {
-            "title": body["title"],
-            "author": body["author"],
-            "year": body.get("year"),
-        },
-        "content_type_received": content_type,
-        "lesson": "The Content-Type header tells the server how to interpret "
-                  "your request body. For JSON data, use application/json.",
-    }
-
-
 @router.post("/status-check")
 def status_check(body: dict | None = None):
     if not body or "codes" not in body:
