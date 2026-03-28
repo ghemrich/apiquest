@@ -1,4 +1,7 @@
+import re
 from dataclasses import dataclass
+
+_PLACEHOLDER_RE = re.compile(r"<(access_token|admin_token|refresh_token|token|etag)>")
 
 
 @dataclass
@@ -24,6 +27,14 @@ def _check_path(submitted: str, expected: str) -> bool:
     return _normalize_path(submitted) == _normalize_path(expected)
 
 
+def _placeholder_match(submitted: str, expected: str) -> bool:
+    """Check if submitted matches expected, treating <...> as non-empty wildcards."""
+    pattern = re.escape(expected)
+    # Replace escaped placeholders with .+ wildcard
+    pattern = re.sub(r"<(access_token|admin_token|refresh_token|token|etag)>", ".+", pattern)
+    return bool(re.fullmatch(pattern, submitted))
+
+
 def _check_headers(submitted: dict | None, expected: dict | None) -> bool:
     if not expected:
         return True
@@ -31,7 +42,13 @@ def _check_headers(submitted: dict | None, expected: dict | None) -> bool:
         return False
     submitted_lower = {k.lower(): v for k, v in submitted.items()}
     for key, value in expected.items():
-        if submitted_lower.get(key.lower()) != value:
+        sub_val = submitted_lower.get(key.lower())
+        if sub_val is None:
+            return False
+        if _PLACEHOLDER_RE.search(value):
+            if not _placeholder_match(sub_val, value):
+                return False
+        elif sub_val != value:
             return False
     return True
 
@@ -66,6 +83,9 @@ def _deep_compare(submitted, expected) -> bool:
     # Scalar comparison — type-aware but flexible with int/float
     if isinstance(expected, (int, float)) and isinstance(submitted, (int, float)):
         return float(submitted) == float(expected)
+    # Placeholder wildcards: <token>, <etag>, etc.
+    if isinstance(expected, str) and isinstance(submitted, str) and _PLACEHOLDER_RE.search(expected):
+        return _placeholder_match(submitted, expected)
     return submitted == expected
 
 
