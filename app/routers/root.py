@@ -64,6 +64,7 @@ LANDING_HTML = """\
     <a href="/docs">API Docs</a>
     <a href="/api/v1/">API Root</a>
     <a href="/api/v1/leaderboard">Leaderboard</a>
+    <a href="https://github.com/ghemrich/apiquest/issues">Report Issue</a>
   </div>
 
   <p class="footer">Use curl, HTTPie, Postman, or any HTTP client to play.</p>
