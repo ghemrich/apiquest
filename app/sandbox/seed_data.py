@@ -4,7 +4,7 @@ BOOKS = [
     {"id": 1, "title": "Clean Code", "author": "Robert C. Martin", "year": 2008},
     {"id": 2, "title": "The Pragmatic Programmer", "author": "David Thomas", "year": 2019},
     {"id": 3, "title": "Design Patterns", "author": "Erich Gamma", "year": 1994},
-    {"id": 4, "title": "Refactoring", "author": "Martin Fowler", "year": 2018},
+    {"id": 4, "title": "Refactoring", "author": "Martin Fouler", "year": 2018},
     {"id": 5, "title": "Introduction to Algorithms", "author": "Thomas Cormen", "year": 2009},
     {"id": 6, "title": "The Art of Computer Programming", "author": "Donald Knuth", "year": 1968},
     {"id": 7, "title": "Code Complete", "author": "Steve McConnell", "year": 2004},
