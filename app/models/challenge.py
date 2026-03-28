@@ -43,6 +43,7 @@ class Challenge(Base):
     expected_query_params: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     expected_body: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     expected_response: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    clues: Mapped[list | None] = mapped_column(JSON, nullable=True)
     hints: Mapped[list | None] = mapped_column(JSON, nullable=True)
     order_index: Mapped[int] = mapped_column(Integer, nullable=False)
     time_limit_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)

@@ -27,11 +27,7 @@ def get_challenge(
     hints_total = len(challenge.hints) if challenge.hints else 0
     hints_revealed = count_hints_revealed(db, current_user.id, challenge.id)
 
-    # Parse clues from description — store them as first lines separated by newlines,
-    # or use a convention. For now, description IS the clue text.
-    clues = []
-    if challenge.description:
-        clues = [line.strip() for line in challenge.description.split("\n") if line.strip()]
+    clues = challenge.clues or []
 
     return ChallengeResponse(
         id=challenge.id,
