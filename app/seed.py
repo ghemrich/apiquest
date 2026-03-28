@@ -328,6 +328,20 @@ def seed_database(db: Session) -> None:
                 db.add(challenge)
                 created_challenges += 1
 
+    # ── Prune removed challenges ─────────────────────────────────
+    all_seed_titles = set()
+    for track_title, challenges in CHALLENGES.items():
+        for c in challenges:
+            all_seed_titles.add((track_title, c[0]))  # (track_title, challenge_title)
+
+    removed_challenges = 0
+    for track_title, track in track_objects.items():
+        db_challenges = db.query(Challenge).filter_by(track_id=track.id).all()
+        for ch in db_challenges:
+            if (track_title, ch.title) not in all_seed_titles:
+                db.delete(ch)
+                removed_challenges += 1
+
     # ── Upsert badges ─────────────────────────────────────────────
     for b in BADGES:
         existing = db.query(Badge).filter_by(name=b["name"]).first()
@@ -345,15 +359,17 @@ def seed_database(db: Session) -> None:
 
     total_new = created_tracks + created_challenges + created_badges
     total_upd = updated_tracks + updated_challenges + updated_badges
-    if total_new and total_upd:
-        print(
-            f"Seed: created {created_tracks}t/{created_challenges}c/{created_badges}b, "
-            f"updated {updated_tracks}t/{updated_challenges}c/{updated_badges}b."
-        )
-    elif total_upd:
-        print(f"Seed data up-to-date ({updated_tracks} tracks, {updated_challenges} challenges, {updated_badges} badges).")
+    parts = []
+    if total_new:
+        parts.append(f"created {created_tracks}t/{created_challenges}c/{created_badges}b")
+    if total_upd:
+        parts.append(f"updated {updated_tracks}t/{updated_challenges}c/{updated_badges}b")
+    if removed_challenges:
+        parts.append(f"removed {removed_challenges} stale challenges")
+    if parts:
+        print(f"Seed: {', '.join(parts)}.")
     else:
-        print(f"Seeded {created_tracks} tracks, {created_challenges} challenges, {created_badges} badges.")
+        print(f"Seed data up-to-date ({updated_tracks} tracks, {updated_challenges} challenges, {updated_badges} badges).")
 
 
 if __name__ == "__main__":
