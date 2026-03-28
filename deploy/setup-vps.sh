@@ -31,6 +31,7 @@ fi
 
 echo "==> Updating system packages"
 apt-get update && apt-get upgrade -y
+apt-get install -y git openssl curl
 
 # ── Create deploy user ─────────────────────────────────────────
 echo "==> Creating deploy user: ${DEPLOY_USER}"
