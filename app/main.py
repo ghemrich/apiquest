@@ -12,7 +12,16 @@ from app.kafka.consumers import (
 )
 from app.kafka.producer import start_kafka_producer, stop_kafka_producer
 from app.routers import auth, challenges, leaderboard, root, submissions, tracks, users, websockets
-from app.sandbox import mock_advanced, mock_auth, mock_books, mock_broken, mock_hello, mock_stream, mock_tasks, mock_users
+from app.sandbox import (
+    mock_advanced,
+    mock_auth,
+    mock_books,
+    mock_broken,
+    mock_hello,
+    mock_stream,
+    mock_tasks,
+    mock_users,
+)
 
 logger = logging.getLogger(__name__)
 
