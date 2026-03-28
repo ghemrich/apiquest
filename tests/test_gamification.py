@@ -76,8 +76,8 @@ class TestStreak:
 
 class TestTrackProgress:
     def test_creates_progress(self, db, registered_user):
-        from app.models.user import User
         from app.models.submission import Submission
+        from app.models.user import User
         user = db.query(User).filter(User.username == "testplayer").first()
         track = _make_track(db)
         ch = _make_challenge(db, track, order=1)
@@ -91,8 +91,8 @@ class TestTrackProgress:
         assert progress.challenges_completed == 1
 
     def test_marks_complete(self, db, registered_user):
-        from app.models.user import User
         from app.models.submission import Submission
+        from app.models.user import User
         user = db.query(User).filter(User.username == "testplayer").first()
         track = _make_track(db)
         ch = _make_challenge(db, track, order=1)
