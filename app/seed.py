@@ -262,7 +262,7 @@ BADGES = [
     {"name": "Beginner Graduate", "description": "Complete all Beginner tier challenges", "criteria_type": "tier_complete", "criteria_value": 14},
     {"name": "Intermediate Graduate", "description": "Complete all Intermediate tier challenges", "criteria_type": "tier_complete", "criteria_value": 14},
     {"name": "Advanced Graduate", "description": "Complete all Advanced tier challenges", "criteria_type": "tier_complete", "criteria_value": 13},
-    {"name": "Quest Master", "description": "Complete every challenge in the game", "criteria_type": "all_challenges_complete", "criteria_value": 47},
+    {"name": "Quest Master", "description": "Complete every challenge in the game", "criteria_type": "all_challenges_complete", "criteria_value": 46},
 ]
 
 
