@@ -271,51 +271,106 @@ BADGES = [
 
 
 def seed_database(db: Session) -> None:
-    """Populate tracks, challenges, and badges if they don't exist yet."""
+    """Populate tracks, challenges, and badges (upsert — safe to re-run).
 
-    # Skip if already seeded
-    if db.query(Track).first():
-        print("Database already seeded — skipping.")
-        return
+    Matches existing rows by title/name and updates their content fields
+    while preserving primary-key UUIDs.  This keeps foreign-key references
+    from submissions, hint_reveals, user_track_progress, and user_badges
+    intact so player progress is never lost on reseed.
+    """
+    created_tracks = updated_tracks = 0
+    created_challenges = updated_challenges = 0
+    created_badges = updated_badges = 0
 
-    # Create tracks
+    # ── Upsert tracks ──────────────────────────────────────────────
     track_objects: dict[str, Track] = {}
     for t in TRACKS:
-        track = Track(**t)
-        db.add(track)
-        db.flush()
-        track_objects[t["title"]] = track
+        existing = db.query(Track).filter_by(title=t["title"]).first()
+        if existing:
+            existing.description = t["description"]
+            existing.difficulty = t["difficulty"]
+            existing.order_index = t["order_index"]
+            track_objects[t["title"]] = existing
+            updated_tracks += 1
+        else:
+            track = Track(**t)
+            db.add(track)
+            db.flush()
+            track_objects[t["title"]] = track
+            created_tracks += 1
 
-    # Create challenges
+    db.flush()
+
+    # ── Upsert challenges ──────────────────────────────────────────
     for track_title, challenges in CHALLENGES.items():
         track = track_objects[track_title]
         for idx, c in enumerate(challenges):
             title, desc, method, path, headers, query, body, points, hints, sandbox, time_limit = c
-            challenge = Challenge(
-                track_id=track.id,
-                title=title,
-                description=desc,
-                difficulty=track.difficulty,
-                points_value=points,
-                expected_method=method,
-                expected_path=path,
-                expected_headers=headers,
-                expected_query_params=query,
-                expected_body=body,
-                hints=hints,
-                order_index=idx + 1,
-                sandbox_endpoint=sandbox,
-                time_limit_seconds=time_limit,
+            existing = (
+                db.query(Challenge)
+                .filter_by(track_id=track.id, title=title)
+                .first()
             )
-            db.add(challenge)
+            if existing:
+                existing.description = desc
+                existing.difficulty = track.difficulty
+                existing.points_value = points
+                existing.expected_method = method
+                existing.expected_path = path
+                existing.expected_headers = headers
+                existing.expected_query_params = query
+                existing.expected_body = body
+                existing.hints = hints
+                existing.order_index = idx + 1
+                existing.sandbox_endpoint = sandbox
+                existing.time_limit_seconds = time_limit
+                updated_challenges += 1
+            else:
+                challenge = Challenge(
+                    track_id=track.id,
+                    title=title,
+                    description=desc,
+                    difficulty=track.difficulty,
+                    points_value=points,
+                    expected_method=method,
+                    expected_path=path,
+                    expected_headers=headers,
+                    expected_query_params=query,
+                    expected_body=body,
+                    hints=hints,
+                    order_index=idx + 1,
+                    sandbox_endpoint=sandbox,
+                    time_limit_seconds=time_limit,
+                )
+                db.add(challenge)
+                created_challenges += 1
 
-    # Create badges
+    # ── Upsert badges ─────────────────────────────────────────────
     for b in BADGES:
-        badge = Badge(**b)
-        db.add(badge)
+        existing = db.query(Badge).filter_by(name=b["name"]).first()
+        if existing:
+            existing.description = b["description"]
+            existing.criteria_type = b["criteria_type"]
+            existing.criteria_value = b["criteria_value"]
+            updated_badges += 1
+        else:
+            badge = Badge(**b)
+            db.add(badge)
+            created_badges += 1
 
     db.commit()
-    print(f"Seeded {len(TRACKS)} tracks, {sum(len(c) for c in CHALLENGES.values())} challenges, {len(BADGES)} badges.")
+
+    total_new = created_tracks + created_challenges + created_badges
+    total_upd = updated_tracks + updated_challenges + updated_badges
+    if total_new and total_upd:
+        print(
+            f"Seed: created {created_tracks}t/{created_challenges}c/{created_badges}b, "
+            f"updated {updated_tracks}t/{updated_challenges}c/{updated_badges}b."
+        )
+    elif total_upd:
+        print(f"Seed data up-to-date ({updated_tracks} tracks, {updated_challenges} challenges, {updated_badges} badges).")
+    else:
+        print(f"Seeded {created_tracks} tracks, {created_challenges} challenges, {created_badges} badges.")
 
 
 if __name__ == "__main__":
