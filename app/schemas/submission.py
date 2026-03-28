@@ -15,6 +15,7 @@ class SubmissionCreate(BaseModel):
 class PartialMatch(BaseModel):
     method: bool
     path: bool
+    query_params: bool
     headers: bool
     body: bool
 

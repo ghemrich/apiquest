@@ -277,6 +277,7 @@ def submit_solution(
         partial_matches=PartialMatch(
             method=result.method_match,
             path=result.path_match,
+            query_params=result.query_params_match,
             headers=result.headers_match,
             body=result.body_match,
         ),
