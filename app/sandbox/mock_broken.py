@@ -1,8 +1,6 @@
 """Mock Broken API — Track 5: Error Detective."""
 
 import hashlib
-import time
-import uuid as uuid_mod
 
 from fastapi import APIRouter, HTTPException, Query, Response
 from fastapi import Request as _Request
@@ -28,9 +26,56 @@ _documents = {
 _etags: dict[int, str] = {}
 _etags[1] = hashlib.md5(b"Original Document:Initial content").hexdigest()
 
-# Multi-step chain
-_chain_tokens: dict[str, dict] = {}  # token -> {id, expires_at}
-_chain_ids: dict[str, str] = {}  # id -> answer
+# Deterministic 3-step chain
+_CHAIN_TOKEN = "quest-chain-token"
+_CHAIN_ID = "chain-42"
+_CHAIN_ANSWER = "api-quest-complete"
+
+
+@router.get("/step1")
+def chain_step1():
+    return {
+        "token": _CHAIN_TOKEN,
+        "next": "GET /api/v1/sandbox/broken/step2?token=quest-chain-token",
+        "message": "Use this token in step2",
+    }
+
+
+@router.get("/step2")
+def chain_step2(token: str = Query(default="")):
+    if token != _CHAIN_TOKEN:
+        raise HTTPException(status_code=400, detail="Invalid or missing token. Start at GET /step1")
+    return {
+        "id": _CHAIN_ID,
+        "next": f"GET /api/v1/sandbox/broken/step3/{_CHAIN_ID}",
+        "message": "Use this id in step3",
+    }
+
+
+@router.get("/step3/{chain_id}")
+def chain_step3(chain_id: str):
+    if chain_id != _CHAIN_ID:
+        raise HTTPException(status_code=404, detail="Invalid id. Start at GET /step1")
+    return {
+        "answer": _CHAIN_ANSWER,
+        "next": "POST /api/v1/sandbox/broken/chain-complete",
+        "message": "Chain complete! Submit this answer to /chain-complete",
+    }
+
+
+@router.post("/chain-complete")
+def chain_complete(body: dict | None = None):
+    if not body or "answer" not in body:
+        raise HTTPException(
+            status_code=400,
+            detail='Submit {"answer": "<value>"} — get the answer by following the chain from /step1',
+        )
+    if body["answer"] == _CHAIN_ANSWER:
+        return {"correct": True, "message": "You followed the entire chain!"}
+    return {
+        "correct": False,
+        "message": "Wrong answer. Follow the chain: GET /step1 → /step2?token=X → /step3/{id}",
+    }
 
 
 @router.get("/items")
@@ -95,7 +140,9 @@ def get_product_v1(product_id: int):
     product = _products_v1.get(product_id)
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
-    return product
+    result = dict(product)
+    result["_notice"] = "This is API v1 (deprecated). Use /v2/products/ for additional fields."
+    return result
 
 
 @router.get("/v2/products/{product_id}")
@@ -145,33 +192,3 @@ def update_document(doc_id: int, request: _Request, body: dict | None = None, re
     return doc
 
 
-@router.get("/step1")
-def chain_step1():
-    token = uuid_mod.uuid4().hex[:16]
-    chain_id = uuid_mod.uuid4().hex[:8]
-    _chain_tokens[token] = {"id": chain_id, "expires_at": time.time() + 30}
-    answer = uuid_mod.uuid4().hex[:12]
-    _chain_ids[chain_id] = answer
-    return {"token": token, "message": "Use this token in step2 within 30 seconds"}
-
-
-@router.get("/step2")
-def chain_step2(token: str = Query(default="")):
-    if not token or token not in _chain_tokens:
-        raise HTTPException(status_code=400, detail="Invalid or missing token")
-    data = _chain_tokens[token]
-    if time.time() > data["expires_at"]:
-        del _chain_tokens[token]
-        raise HTTPException(status_code=400, detail="Token expired")
-    chain_id = data["id"]
-    del _chain_tokens[token]  # single-use
-    return {"id": chain_id, "message": "Use this id in step3"}
-
-
-@router.get("/step3/{chain_id}")
-def chain_step3(chain_id: str):
-    answer = _chain_ids.get(chain_id)
-    if not answer:
-        raise HTTPException(status_code=404, detail="Invalid id")
-    del _chain_ids[chain_id]
-    return {"answer": answer, "message": "Chain complete!"}

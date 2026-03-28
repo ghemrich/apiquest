@@ -28,8 +28,8 @@ BOOKS = [
     {"id": 25, "title": "Programming Pearls", "author": "Jon Bentley", "year": 1999},
     # Book ID 42 is special — referenced in challenges
     {"id": 42, "title": "API Design Patterns", "author": "JJ Geewax", "year": 2021},
-    # Book ID 99 — placeholder for the DELETE challenge
-    {"id": 99, "title": "Placeholder", "author": "To Be Deleted", "year": 2000},
+    # Book ID 99 — placeholder for the DELETE challenge (obviously fake)
+    {"id": 99, "title": "[TEST] Placeholder — Delete Me", "author": "Nobody", "year": 1},
 ]
 
 # Next auto-id for POST /books

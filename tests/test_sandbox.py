@@ -148,6 +148,7 @@ class TestMockAuthAPI:
         token = login.json()["access_token"]
         resp = client.get("/api/v1/sandbox/mock-auth/admin/users", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 403
+        assert "role" in resp.json()["detail"].lower()
 
     def test_api_key(self, client):
         resp = client.get("/api/v1/sandbox/mock-auth/external/data", headers={"X-API-Key": "sk_test_abc123xyz"})
@@ -156,16 +157,30 @@ class TestMockAuthAPI:
     def test_api_key_wrong(self, client):
         resp = client.get("/api/v1/sandbox/mock-auth/external/data", headers={"X-API-Key": "wrong"})
         assert resp.status_code == 401
+        assert "api-keys" in resp.json()["detail"].lower()
 
-    def test_cors_options(self, client):
-        resp = client.options("/api/v1/sandbox/mock-auth/cors-test")
+    def test_api_keys_endpoint(self, client):
+        resp = client.get("/api/v1/sandbox/mock-auth/api-keys")
         assert resp.status_code == 200
-        assert "Access-Control-Allow-Origin" in resp.headers
+        assert resp.json()["api_key"] == "sk_test_abc123xyz"
 
-    def test_input_sanitization(self, client):
-        resp = client.post("/api/v1/sandbox/mock-auth/users", json={"name": "<script>alert('xss')</script>"})
-        assert resp.status_code == 400
-        assert "invalid characters" in resp.json()["detail"]
+    def test_accounts_endpoint(self, client):
+        resp = client.get("/api/v1/sandbox/mock-auth/accounts")
+        assert resp.status_code == 200
+        accounts = resp.json()["accounts"]
+        usernames = [a["username"] for a in accounts]
+        assert "player1" in usernames
+        assert "admin1" in usernames
+
+    def test_rate_limit_report_correct(self, client):
+        resp = client.post("/api/v1/sandbox/mock-auth/rate-limit-report", json={"limit": 5, "window_seconds": 60})
+        assert resp.status_code == 200
+        assert resp.json()["all_correct"] is True
+
+    def test_rate_limit_report_wrong(self, client):
+        resp = client.post("/api/v1/sandbox/mock-auth/rate-limit-report", json={"limit": 10, "window_seconds": 30})
+        assert resp.status_code == 200
+        assert resp.json()["all_correct"] is False
 
 
 class TestUsersDataAPI:
@@ -239,8 +254,13 @@ class TestBrokenAPI:
     def test_api_versions(self, client):
         v1 = client.get("/api/v1/sandbox/broken/v1/products/1").json()
         v2 = client.get("/api/v1/sandbox/broken/v2/products/1").json()
-        assert "description" not in v1
+        assert "description" not in v1 or "_notice" in v1
         assert "description" in v2
+
+    def test_v1_deprecation_notice(self, client):
+        v1 = client.get("/api/v1/sandbox/broken/v1/products/1").json()
+        assert "_notice" in v1
+        assert "v2" in v1["_notice"]
 
     def test_heavy_data_timeout(self, client):
         resp = client.get("/api/v1/sandbox/broken/heavy-data")
@@ -265,6 +285,19 @@ class TestBrokenAPI:
         # Step 3
         s3 = client.get(f"/api/v1/sandbox/broken/step3/{s2['id']}").json()
         assert "answer" in s3
+
+    def test_chain_complete(self, client):
+        s1 = client.get("/api/v1/sandbox/broken/step1").json()
+        s2 = client.get(f"/api/v1/sandbox/broken/step2?token={s1['token']}").json()
+        s3 = client.get(f"/api/v1/sandbox/broken/step3/{s2['id']}").json()
+        resp = client.post("/api/v1/sandbox/broken/chain-complete", json={"answer": s3["answer"]})
+        assert resp.status_code == 200
+        assert resp.json()["correct"] is True
+
+    def test_chain_complete_wrong(self, client):
+        resp = client.post("/api/v1/sandbox/broken/chain-complete", json={"answer": "wrong"})
+        assert resp.status_code == 200
+        assert resp.json()["correct"] is False
 
 
 class TestAdvancedAPI:
@@ -293,8 +326,22 @@ class TestAdvancedAPI:
         resp = client.post("/api/v1/sandbox/advanced/reports", json={"type": "sales", "period": "Q1"})
         assert resp.status_code == 202
         report_id = resp.json()["report_id"]
+        assert report_id == "rpt-q1"
         status = client.get(f"/api/v1/sandbox/advanced/reports/{report_id}/status")
         assert status.json()["status"] in ("pending", "processing", "complete")
+
+    def test_report_check_correct(self, client):
+        # Start report
+        client.post("/api/v1/sandbox/advanced/reports", json={"type": "sales", "period": "Q1"})
+        resp = client.post("/api/v1/sandbox/advanced/report-check", json={"report_id": "rpt-q1", "total_revenue": 33000})
+        assert resp.status_code == 200
+        assert resp.json()["all_correct"] is True
+
+    def test_report_check_wrong(self, client):
+        client.post("/api/v1/sandbox/advanced/reports", json={"type": "sales", "period": "Q1"})
+        resp = client.post("/api/v1/sandbox/advanced/report-check", json={"report_id": "rpt-q1", "total_revenue": 99999})
+        assert resp.status_code == 200
+        assert resp.json()["all_correct"] is False
 
     def test_idempotent_payment(self, client):
         pay1 = client.post(

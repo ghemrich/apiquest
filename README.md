@@ -34,7 +34,7 @@ curl https://apiquest.cc/api/v1/tracks \
 | 6 | Real-Time APIs | Advanced |
 | 7 | System Design | Expert |
 
-46 challenges across 7 tracks.
+41 challenges across 7 tracks.
 
 ## Stack
 

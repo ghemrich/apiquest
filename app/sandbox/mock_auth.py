@@ -107,7 +107,11 @@ def get_profile(request: Request):
 def admin_users(request: Request):
     token_data = _validate_bearer(request)
     if token_data["role"] != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
+        raise HTTPException(
+            status_code=403,
+            detail=f"Admin access required. Your current role is '{token_data['role']}'. "
+                   "Check GET /api/v1/sandbox/mock-auth/accounts for available test accounts.",
+        )
     return {
         "users": [
             {"username": u, "role": d["role"], "name": d["name"]}
@@ -120,7 +124,11 @@ def admin_users(request: Request):
 def external_data(request: Request):
     api_key = request.headers.get("x-api-key", "")
     if api_key != _VALID_API_KEY:
-        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or missing API key. This endpoint requires an X-API-Key header. "
+                   "Get a test key from GET /api/v1/sandbox/mock-auth/api-keys",
+        )
     return {"source": "external", "data": [{"id": 1, "value": "secret-data"}]}
 
 
@@ -153,6 +161,51 @@ def rate_limited(request: Request, response: Response):
             },
         )
     return {"message": "Success", "requests_remaining": remaining}
+
+
+@router.get("/api-keys")
+def get_api_keys():
+    """Returns a test API key for the /external/data endpoint."""
+    return {
+        "api_key": _VALID_API_KEY,
+        "header": "X-API-Key",
+        "usage": "Add this header to requests: X-API-Key: sk_test_abc123xyz",
+    }
+
+
+@router.get("/accounts")
+def list_accounts():
+    """Lists available test accounts (no passwords — those are for you to discover)."""
+    return {
+        "accounts": [
+            {"username": u, "role": d["role"], "hint": "Password follows a pattern based on the role"}
+            for u, d in _USERS.items()
+        ]
+    }
+
+
+@router.post("/rate-limit-report")
+def rate_limit_report(body: dict | None = None):
+    """Validate that the player correctly identified the rate limit parameters."""
+    if not body or "limit" not in body or "window_seconds" not in body:
+        raise HTTPException(
+            status_code=400,
+            detail="Submit {\"limit\": <number>, \"window_seconds\": <number>} "
+                   "based on the headers you observed from GET /limited",
+        )
+    results = []
+    all_correct = True
+    if body["limit"] == _RATE_LIMIT:
+        results.append({"field": "limit", "correct": True, "hint": "Correct!"})
+    else:
+        all_correct = False
+        results.append({"field": "limit", "correct": False, "hint": "Check X-RateLimit-Limit header"})
+    if body["window_seconds"] == _RATE_WINDOW:
+        results.append({"field": "window_seconds", "correct": True, "hint": "Correct!"})
+    else:
+        all_correct = False
+        results.append({"field": "window_seconds", "correct": False, "hint": "Check the Retry-After header on your first request"})
+    return {"all_correct": all_correct, "results": results}
 
 
 @router.options("/cors-test")

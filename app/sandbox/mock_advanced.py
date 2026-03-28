@@ -60,18 +60,24 @@ _reports: dict[str, dict] = {}
 def create_report(body: dict | None = None):
     if not body or "type" not in body:
         raise HTTPException(status_code=400, detail="type is required")
-    report_id = uuid_mod.uuid4().hex[:12]
-    _reports[report_id] = {
-        "id": report_id,
-        "type": body.get("type"),
-        "period": body.get("period"),
-        "status": "pending",
-        "created_at": time.time(),
-    }
+    # Deterministic ID for sales/Q1 so the challenge is testable
+    if body.get("type") == "sales" and body.get("period") == "Q1":
+        report_id = "rpt-q1"
+    else:
+        report_id = uuid_mod.uuid4().hex[:12]
+    if report_id not in _reports:
+        _reports[report_id] = {
+            "id": report_id,
+            "type": body.get("type"),
+            "period": body.get("period"),
+            "status": "pending",
+            "created_at": time.time(),
+        }
     return {
         "report_id": report_id,
         "status": "pending",
         "status_url": f"/api/v1/sandbox/advanced/reports/{report_id}/status",
+        "next_step": "Poll the status_url until status is 'complete', then GET /download",
     }
 
 
@@ -87,7 +93,10 @@ def report_status(report_id: str):
         report["status"] = "processing"
     else:
         report["status"] = "complete"
-    return {"report_id": report_id, "status": report["status"]}
+    result = {"report_id": report_id, "status": report["status"]}
+    if report["status"] == "complete":
+        result["download_url"] = f"/api/v1/sandbox/advanced/reports/{report_id}/download"
+    return result
 
 
 @router.get("/reports/{report_id}/download")
@@ -98,13 +107,42 @@ def download_report(report_id: str):
     if report["status"] != "complete":
         elapsed = time.time() - report["created_at"]
         if elapsed < 6:
-            raise HTTPException(status_code=409, detail="Report not yet complete")
+            raise HTTPException(status_code=409, detail="Report not yet complete. Poll /status until 'complete'.")
+    data = [{"month": m, "revenue": 10000 + m * 500} for m in range(1, 4)]
     return {
         "report_id": report_id,
         "type": report["type"],
         "period": report["period"],
-        "data": [{"month": m, "revenue": 10000 + m * 500} for m in range(1, 4)],
+        "data": data,
+        "next_step": "Sum the revenue values and POST to /report-check with report_id and total_revenue",
     }
+
+
+@router.post("/report-check")
+def report_check(body: dict | None = None):
+    """Validate that the player completed the full async flow."""
+    if not body or "report_id" not in body or "total_revenue" not in body:
+        raise HTTPException(
+            status_code=400,
+            detail='Submit {"report_id": "<id>", "total_revenue": <sum>} after downloading the report',
+        )
+    report = _reports.get(body["report_id"])
+    if not report:
+        return {"correct": False, "message": "Unknown report_id. Start by POSTing to /reports"}
+    expected_revenue = sum(10000 + m * 500 for m in range(1, 4))  # 33000
+    results = []
+    all_correct = True
+    if body["report_id"] == report["id"]:
+        results.append({"field": "report_id", "correct": True})
+    else:
+        all_correct = False
+        results.append({"field": "report_id", "correct": False, "hint": "Check the report_id from /reports"})
+    if body["total_revenue"] == expected_revenue:
+        results.append({"field": "total_revenue", "correct": True})
+    else:
+        all_correct = False
+        results.append({"field": "total_revenue", "correct": False, "hint": "Sum all revenue values from the downloaded data"})
+    return {"all_correct": all_correct, "results": results}
 
 
 # --- Idempotent payments ---
