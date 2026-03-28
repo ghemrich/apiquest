@@ -9,7 +9,6 @@ class TestGetProfile:
         assert resp.status_code == 200
         data = resp.json()
         assert data["username"] == "testplayer"
-        assert data["email"] == "test@example.com"
         assert data["total_points"] == 0
         assert data["current_streak"] == 0
 
@@ -42,7 +41,6 @@ class TestUpdateProfile:
         # Register a second user
         client.post("/api/v1/auth/register", json={
             "username": "otherplayer",
-            "email": "other@example.com",
             "password": "securepass123",
         })
         resp = client.put("/api/v1/users/me", json={"username": "otherplayer"}, headers=auth_header)

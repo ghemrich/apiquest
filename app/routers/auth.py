@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from jose import JWTError
 from sqlalchemy.orm import Session
 
-from app.crud.user import create_user, get_user_by_email, get_user_by_username
+from app.crud.user import create_user, get_user_by_username
 from app.dependencies import get_current_user, get_db
 from app.models.gamification import Badge, UserBadge
 from app.models.user import User
@@ -28,19 +28,16 @@ router = APIRouter(prefix="/api/v1/auth", tags=["Authentication"])
 
 @router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
 def register(data: UserCreate, db: Session = Depends(get_db)):
-    if get_user_by_email(db, data.email):
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
     if get_user_by_username(db, data.username):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username already taken")
 
-    user = create_user(db, data.username, data.email, data.password)
+    user = create_user(db, data.username, data.password)
     access_token = create_access_token({"sub": str(user.id)})
     refresh_token = create_refresh_token({"sub": str(user.id)})
 
     return RegisterResponse(
         id=user.id,
         username=user.username,
-        email=user.email,
         total_points=user.total_points,
         current_streak=user.current_streak,
         access_token=access_token,
@@ -51,9 +48,9 @@ def register(data: UserCreate, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 def login(data: UserLogin, db: Session = Depends(get_db)):
-    user = get_user_by_email(db, data.email)
+    user = get_user_by_username(db, data.username)
     if not user or not verify_password(data.password, user.hashed_password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password")
 
     access_token = create_access_token({"sub": str(user.id)})
     refresh_token = create_refresh_token({"sub": str(user.id)})

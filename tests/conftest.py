@@ -60,7 +60,6 @@ def registered_user(client):
     """Register a user and return the response data."""
     resp = client.post("/api/v1/auth/register", json={
         "username": "testplayer",
-        "email": "test@example.com",
         "password": "securepass123",
     })
     return resp.json()

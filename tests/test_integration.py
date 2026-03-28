@@ -16,7 +16,6 @@ class TestEndToEndFlow:
         # 1. Register
         reg = client.post("/api/v1/auth/register", json={
             "username": "journeyplayer",
-            "email": "journey@example.com",
             "password": "strongpass99",
         })
         assert reg.status_code == 201

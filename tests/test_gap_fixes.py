@@ -98,7 +98,7 @@ class TestChangePassword:
 
         # Login with new password
         resp2 = client.post("/api/v1/auth/login", json={
-            "email": "test@example.com",
+            "username": "testplayer",
             "password": "newpass12345",
         })
         assert resp2.status_code == 200

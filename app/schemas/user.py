@@ -1,17 +1,16 @@
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 
 
 class UserCreate(BaseModel):
     username: str = Field(min_length=3, max_length=50)
-    email: EmailStr
     password: str = Field(min_length=8, max_length=128)
 
 
 class UserLogin(BaseModel):
-    email: EmailStr
+    username: str
     password: str
 
 
@@ -34,7 +33,7 @@ class PasswordChange(BaseModel):
 class UserResponse(BaseModel):
     id: uuid.UUID
     username: str
-    email: str
+    email: str | None = None
     total_points: int
     current_streak: int
     longest_streak: int
@@ -51,7 +50,6 @@ class UserResponse(BaseModel):
 class RegisterResponse(BaseModel):
     id: uuid.UUID
     username: str
-    email: str
     total_points: int
     current_streak: int
     access_token: str
