@@ -168,7 +168,7 @@ def submit_solution(
 
         # Gamification: streak, track progress
         update_streak(db, current_user)
-        track_progress = update_track_progress(db, current_user.id, challenge.track_id)
+        track_progress = update_track_progress(db, current_user.id, challenge.track_id, pending_challenge_id=challenge.id)
 
         # Track completion bonus: 500 × 1.5 = 750 bonus points
         if track_progress.completed_at is not None:

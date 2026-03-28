@@ -342,6 +342,18 @@ def seed_database(db: Session) -> None:
                 db.delete(ch)
                 removed_challenges += 1
 
+    # Reconcile all UserTrackProgress rows (handles count drift from
+    # added/removed challenges or any prior bugs)
+    from app.models.gamification import UserTrackProgress
+    from app.services.gamification_service import check_and_award_badges, update_track_progress
+    all_progress_rows = db.query(UserTrackProgress).all()
+    reconciled_user_ids = set()
+    for row in all_progress_rows:
+        update_track_progress(db, row.user_id, row.track_id)
+        reconciled_user_ids.add(row.user_id)
+    for uid in reconciled_user_ids:
+        check_and_award_badges(db, uid)
+
     # ── Upsert badges ─────────────────────────────────────────────
     for b in BADGES:
         existing = db.query(Badge).filter_by(name=b["name"]).first()

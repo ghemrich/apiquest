@@ -77,17 +77,31 @@ class TestStreak:
 class TestTrackProgress:
     def test_creates_progress(self, db, registered_user):
         from app.models.user import User
+        from app.models.submission import Submission
         user = db.query(User).filter(User.username == "testplayer").first()
         track = _make_track(db)
-        _make_challenge(db, track, order=1)
+        ch = _make_challenge(db, track, order=1)
+        db.add(Submission(
+            user_id=user.id, challenge_id=ch.id,
+            submitted_method="GET", submitted_path="/test",
+            is_correct=True, points_earned=50,
+        ))
+        db.flush()
         progress = update_track_progress(db, user.id, track.id)
         assert progress.challenges_completed == 1
 
     def test_marks_complete(self, db, registered_user):
         from app.models.user import User
+        from app.models.submission import Submission
         user = db.query(User).filter(User.username == "testplayer").first()
         track = _make_track(db)
-        _make_challenge(db, track, order=1)
+        ch = _make_challenge(db, track, order=1)
+        db.add(Submission(
+            user_id=user.id, challenge_id=ch.id,
+            submitted_method="GET", submitted_path="/test",
+            is_correct=True, points_earned=50,
+        ))
+        db.flush()
         progress = update_track_progress(db, user.id, track.id)
         assert progress.completed_at is not None
 

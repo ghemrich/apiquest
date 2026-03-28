@@ -30,8 +30,17 @@ def update_streak(db: Session, user: User) -> None:
 
 # ---------- Track progress ----------
 
-def update_track_progress(db: Session, user_id: uuid.UUID, track_id: uuid.UUID) -> UserTrackProgress:
-    """Increment challenges_completed for a user/track and mark completed if done."""
+def update_track_progress(
+    db: Session,
+    user_id: uuid.UUID,
+    track_id: uuid.UUID,
+    pending_challenge_id: uuid.UUID | None = None,
+) -> UserTrackProgress:
+    """Recount solved challenges for a user/track and mark completed if done.
+
+    Pass *pending_challenge_id* when the current solve hasn't been persisted yet
+    (i.e. called before create_submission).  Omit it for reconciliation runs.
+    """
     progress = (
         db.query(UserTrackProgress)
         .filter(UserTrackProgress.user_id == user_id, UserTrackProgress.track_id == track_id)
@@ -42,9 +51,22 @@ def update_track_progress(db: Session, user_id: uuid.UUID, track_id: uuid.UUID) 
         db.add(progress)
         db.flush()
 
-    progress.challenges_completed += 1
+    # Count actual distinct solved challenges (resilient to seed changes)
+    solved_ids = set(
+        row[0]
+        for row in db.query(Submission.challenge_id)
+        .join(Challenge, Submission.challenge_id == Challenge.id)
+        .filter(
+            Submission.user_id == user_id,
+            Submission.is_correct == True,  # noqa: E712
+            Challenge.track_id == track_id,
+        )
+        .distinct()
+    )
+    if pending_challenge_id is not None:
+        solved_ids.add(pending_challenge_id)
+    progress.challenges_completed = len(solved_ids)
 
-    # Check if track is fully completed
     total_in_track = db.query(Challenge).filter(Challenge.track_id == track_id).count()
     if progress.challenges_completed >= total_in_track and not progress.completed_at:
         progress.completed_at = datetime.utcnow()
