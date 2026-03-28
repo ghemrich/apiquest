@@ -87,6 +87,12 @@ ufw allow OpenSSH
 ufw allow 'Nginx Full'
 ufw --force enable
 
+# ── Harden SSH ─────────────────────────────────────────────────
+echo "==> Disabling SSH password authentication"
+sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
+systemctl restart sshd
+
 # ── Clone repo ─────────────────────────────────────────────────
 echo "==> Cloning repository"
 if [[ ! -d "${APP_DIR}" ]]; then
