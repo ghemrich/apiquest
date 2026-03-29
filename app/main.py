@@ -78,6 +78,9 @@ async def sandbox_session(request: Request, call_next):
         # Fall back to cookie
         if not sid:
             sid = request.cookies.get("quest_sandbox")
+        # Fall back to client IP (transparent for any HTTP client)
+        if not sid:
+            sid = f"ip-{request.client.host}" if request.client else None
         new = not sid
         if new:
             sid = uuid.uuid4().hex
