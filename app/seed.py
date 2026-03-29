@@ -185,9 +185,9 @@ CHALLENGES = {
          "/api/v1/sandbox/users-data", None),
     ],
     "Error Detective": [
-        ("The Silent Failure", "Fix the typo in the query param.", "GET", "/api/v1/sandbox/broken/items", None, {"status": "active"}, None, 150,
-         ["This API has a subtle query parameter bug that fails silently.", "Try filtering items and compare the results — does the filter actually work?", "Spelling mistakes in parameter names don't cause errors; they just get ignored."],
-         ["The API has a subtle bug", "Check what happens with staus vs status", "One is a typo that silently fails", "Use the correct spelling: status", "?status=active with correct spelling"],
+        ("The Silent Failure", "One of the sandbox endpoints supports filtering, but according to the docs the filter has no effect — it returns everything regardless. Find the endpoint and figure out why.", "GET", "/api/v1/sandbox/broken/items", None, {"status": "active"}, None, 150,
+         ["The sandbox has several endpoints. Start by exploring what\u2019s available.", "One endpoint returns a list that can be filtered by status. Try: GET /items?staus=active", "If the total with the filter equals the total without it, the filter isn\u2019t doing anything."],
+         ["Compare the total with and without the filter parameter", "What if the documentation you were given isn\u2019t accurate?", "Look at the parameter name character by character", "staus \u2260 status \u2014 two letters are swapped", "Use ?status=active (correct spelling)"],
          "/api/v1/sandbox/broken", None),
         ("Missing Required Fields", 'Create an order for a "Widget" (quantity: 5) shipped to "123 Main St". The API will tell you if anything is missing.', "POST", "/api/v1/sandbox/broken/orders", None, None,
          {"product": "Widget", "quantity": 5, "shipping_address": "123 Main St"}, 150,
