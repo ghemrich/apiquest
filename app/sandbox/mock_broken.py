@@ -91,18 +91,15 @@ def chain_complete(body: dict | None = None):
     }
 
 
-@router.get("/items")
+@router.get("/items", include_in_schema=False)
 def list_items(
     request: Request,
     status: str | None = None,
-    staus: str | None = None,  # deliberate typo — silently ignored
 ):
     s = state.get("broken", request)
     result = list(s["items"])
-    # Only the correctly-spelled "status" filters
     if status:
         result = [i for i in result if i["status"] == status]
-    # staus is intentionally ignored (the bug users must discover)
     return {"data": result, "total": len(result)}
 
 
