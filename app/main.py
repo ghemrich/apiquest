@@ -1,7 +1,8 @@
 import logging
+import uuid
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 
 from app.config import settings
 from app.kafka.consumers import (
@@ -56,6 +57,31 @@ app = FastAPI(
 
 # Core routers
 app.include_router(root.router)
+
+
+@app.middleware("http")
+async def sandbox_session(request: Request, call_next):
+    """Assign a per-session ID to sandbox requests via cookie."""
+    if request.url.path.startswith("/api/v1/sandbox"):
+        sid = request.cookies.get("quest_sandbox")
+        new = not sid
+        if new:
+            sid = uuid.uuid4().hex
+        request.state.sandbox_session = sid
+        response = await call_next(request)
+        if new:
+            response.set_cookie(
+                "quest_sandbox",
+                sid,
+                path="/api/v1/sandbox",
+                httponly=True,
+                samesite="lax",
+                max_age=3600,
+            )
+        return response
+    return await call_next(request)
+
+
 app.include_router(auth.router)
 app.include_router(tracks.router)
 app.include_router(challenges.router)

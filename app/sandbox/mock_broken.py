@@ -1,35 +1,48 @@
 """Mock Broken API — Track 5: Error Detective."""
 
+import copy
 import hashlib
 
-from fastapi import APIRouter, HTTPException, Query, Response
+from fastapi import APIRouter, HTTPException, Query, Request, Response
 from fastapi import Request as _Request
+
+from app.sandbox import state
 
 router = APIRouter(prefix="/api/v1/sandbox/broken", tags=["Sandbox: Broken"])
 
-# --- In-memory data ---
-_items = [
+# --- Read-only constants (shared safely) ---
+_products_v1 = {1: {"id": 1, "name": "Widget Pro", "price": 29.99}}
+_products_v2 = {1: {"id": 1, "name": "Widget Pro", "price": 29.99, "description": "Premium widget", "category": "electronics"}}
+
+_CHAIN_TOKEN = "quest-chain-token"
+_CHAIN_ID = "chain-42"
+_CHAIN_ANSWER = "api-quest-complete"
+
+# --- Mutable seed templates ---
+_ITEMS = [
     {"id": i, "name": f"Item {i}", "status": "active" if i % 2 else "inactive"}
     for i in range(1, 21)
 ]
 
-_orders: list[dict] = []
-_next_order_id = 1
-
-_products_v1 = {1: {"id": 1, "name": "Widget Pro", "price": 29.99}}
-_products_v2 = {1: {"id": 1, "name": "Widget Pro", "price": 29.99, "description": "Premium widget", "category": "electronics"}}
-
-# Documents with ETags
-_documents = {
+_DOCUMENTS = {
     1: {"id": 1, "title": "Original Document", "content": "Initial content"},
 }
-_etags: dict[int, str] = {}
-_etags[1] = hashlib.md5(b"Original Document:Initial content").hexdigest()
+_ETAGS = {
+    1: hashlib.md5(b"Original Document:Initial content").hexdigest(),
+}
 
-# Deterministic 3-step chain
-_CHAIN_TOKEN = "quest-chain-token"
-_CHAIN_ID = "chain-42"
-_CHAIN_ANSWER = "api-quest-complete"
+
+def _seed():
+    return {
+        "items": copy.deepcopy(_ITEMS),
+        "orders": [],
+        "next_order_id": 1,
+        "documents": copy.deepcopy(_DOCUMENTS),
+        "etags": dict(_ETAGS),
+    }
+
+
+state.register("broken", _seed)
 
 
 @router.get("/step1")
@@ -80,10 +93,12 @@ def chain_complete(body: dict | None = None):
 
 @router.get("/items")
 def list_items(
+    request: Request,
     status: str | None = None,
     staus: str | None = None,  # deliberate typo — silently ignored
 ):
-    result = list(_items)
+    s = state.get("broken", request)
+    result = list(s["items"])
     # Only the correctly-spelled "status" filters
     if status:
         result = [i for i in result if i["status"] == status]
@@ -97,8 +112,9 @@ def post_item_not_allowed(item_id: int):
 
 
 @router.put("/items/{item_id}")
-def update_item(item_id: int, body: dict | None = None):
-    item = next((i for i in _items if i["id"] == item_id), None)
+def update_item(item_id: int, request: Request, body: dict | None = None):
+    s = state.get("broken", request)
+    item = next((i for i in s["items"] if i["id"] == item_id), None)
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
     if not body or "name" not in body or "status" not in body:
@@ -109,8 +125,8 @@ def update_item(item_id: int, body: dict | None = None):
 
 
 @router.post("/orders")
-def create_order(body: dict | None = None):
-    global _next_order_id
+def create_order(request: Request, body: dict | None = None):
+    s = state.get("broken", request)
     if not body:
         raise HTTPException(status_code=400, detail="Request body required")
     errors = []
@@ -119,9 +135,9 @@ def create_order(body: dict | None = None):
             errors.append({"field": field, "message": "This field is required"})
     if errors:
         raise HTTPException(status_code=422, detail=errors)
-    order = {"id": _next_order_id, **body}
-    _next_order_id += 1
-    _orders.append(order)
+    order = {"id": s["next_order_id"], **body}
+    s["next_order_id"] += 1
+    s["orders"].append(order)
     return order
 
 
@@ -162,22 +178,24 @@ def heavy_data(limit: int | None = None):
 
 
 @router.get("/documents/{doc_id}")
-def get_document(doc_id: int, response: Response):
-    doc = _documents.get(doc_id)
+def get_document(request: Request, doc_id: int, response: Response):
+    s = state.get("broken", request)
+    doc = s["documents"].get(doc_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
-    etag = _etags.get(doc_id, "")
+    etag = s["etags"].get(doc_id, "")
     response.headers["ETag"] = f'"{etag}"'
     return doc
 
 
 @router.put("/documents/{doc_id}")
 def update_document(doc_id: int, request: _Request, body: dict | None = None, response: Response = None):
-    doc = _documents.get(doc_id)
+    s = state.get("broken", request)
+    doc = s["documents"].get(doc_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
     if_match = request.headers.get("if-match", "").strip('"')
-    current_etag = _etags.get(doc_id, "")
+    current_etag = s["etags"].get(doc_id, "")
     if if_match and if_match != current_etag:
         raise HTTPException(status_code=412, detail="Precondition Failed — ETag mismatch")
     if not body:
@@ -187,7 +205,7 @@ def update_document(doc_id: int, request: _Request, body: dict | None = None, re
     if "content" in body:
         doc["content"] = body["content"]
     new_etag = hashlib.md5(f"{doc['title']}:{doc['content']}".encode()).hexdigest()
-    _etags[doc_id] = new_etag
+    s["etags"][doc_id] = new_etag
     response.headers["ETag"] = f'"{new_etag}"'
     return doc
 

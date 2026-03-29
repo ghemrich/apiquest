@@ -7,11 +7,29 @@ import uuid as uuid_mod
 
 from fastapi import APIRouter, HTTPException, Request, Response, status
 
+from app.sandbox import state
+
 router = APIRouter(prefix="/api/v1/sandbox/advanced", tags=["Sandbox: Advanced"])
 
-# --- Cache / ETag ---
+# --- Read-only (shared safely) ---
 _expensive_data = {"data": [{"id": i, "value": f"result_{i}"} for i in range(1, 11)]}
 _expensive_etag = hashlib.md5(json.dumps(_expensive_data).encode()).hexdigest()
+
+
+def _seed():
+    return {
+        "batch_items": [],
+        "batch_next_id": 1,
+        "reports": {},
+        "payments": {},
+        "payment_next_id": 1,
+        "webhook_registrations": [],
+        "webhook_received": [],
+        "flaky_counter": 0,
+    }
+
+
+state.register("advanced", _seed)
 
 
 @router.get("/expensive-data")
@@ -24,14 +42,9 @@ def get_expensive_data(request: Request, response: Response):
     return _expensive_data
 
 
-# --- Batch ---
-_batch_items: list[dict] = []
-_batch_next_id = 1
-
-
 @router.post("/items/batch")
-def batch_create(body: dict | None = None):
-    global _batch_next_id
+def batch_create(request: Request, body: dict | None = None):
+    s = state.get("advanced", request)
     if not body or "items" not in body:
         raise HTTPException(status_code=400, detail="items array required")
     items = body["items"]
@@ -45,19 +58,16 @@ def batch_create(body: dict | None = None):
         if not isinstance(item, dict) or "name" not in item:
             errors.append({"index": idx, "error": "name is required"})
             continue
-        new_item = {"id": _batch_next_id, "name": item["name"]}
-        _batch_next_id += 1
-        _batch_items.append(new_item)
+        new_item = {"id": s["batch_next_id"], "name": item["name"]}
+        s["batch_next_id"] += 1
+        s["batch_items"].append(new_item)
         created.append(new_item)
     return {"created": len(created), "items": created, "errors": errors}
 
 
-# --- Async reports ---
-_reports: dict[str, dict] = {}
-
-
 @router.post("/reports", status_code=status.HTTP_202_ACCEPTED)
-def create_report(body: dict | None = None):
+def create_report(request: Request, body: dict | None = None):
+    s = state.get("advanced", request)
     if not body or "type" not in body:
         raise HTTPException(status_code=400, detail="type is required")
     # Deterministic ID for sales/Q1 so the challenge is testable
@@ -65,8 +75,8 @@ def create_report(body: dict | None = None):
         report_id = "rpt-q1"
     else:
         report_id = uuid_mod.uuid4().hex[:12]
-    if report_id not in _reports:
-        _reports[report_id] = {
+    if report_id not in s["reports"]:
+        s["reports"][report_id] = {
             "id": report_id,
             "type": body.get("type"),
             "period": body.get("period"),
@@ -82,8 +92,9 @@ def create_report(body: dict | None = None):
 
 
 @router.get("/reports/{report_id}/status")
-def report_status(report_id: str):
-    report = _reports.get(report_id)
+def report_status(request: Request, report_id: str):
+    s = state.get("advanced", request)
+    report = s["reports"].get(report_id)
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
     elapsed = time.time() - report["created_at"]
@@ -100,8 +111,9 @@ def report_status(report_id: str):
 
 
 @router.get("/reports/{report_id}/download")
-def download_report(report_id: str):
-    report = _reports.get(report_id)
+def download_report(request: Request, report_id: str):
+    s = state.get("advanced", request)
+    report = s["reports"].get(report_id)
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
     if report["status"] != "complete":
@@ -119,14 +131,15 @@ def download_report(report_id: str):
 
 
 @router.post("/report-check")
-def report_check(body: dict | None = None):
+def report_check(request: Request, body: dict | None = None):
     """Validate that the player completed the full async flow."""
+    s = state.get("advanced", request)
     if not body or "report_id" not in body or "total_revenue" not in body:
         raise HTTPException(
             status_code=400,
             detail='Submit {"report_id": "<id>", "total_revenue": <sum>} after downloading the report',
         )
-    report = _reports.get(body["report_id"])
+    report = s["reports"].get(body["report_id"])
     if not report:
         return {"correct": False, "message": "Unknown report_id. Start by POSTing to /reports"}
     expected_revenue = sum(10000 + m * 500 for m in range(1, 4))  # 33000
@@ -145,38 +158,29 @@ def report_check(body: dict | None = None):
     return {"all_correct": all_correct, "results": results}
 
 
-# --- Idempotent payments ---
-_payments: dict[str, dict] = {}  # idempotency_key -> payment
-_payment_next_id = 1
-
-
 @router.post("/payments")
 def create_payment(request: Request, body: dict | None = None):
-    global _payment_next_id
+    s = state.get("advanced", request)
     if not body or "amount" not in body or "currency" not in body:
         raise HTTPException(status_code=400, detail="amount and currency are required")
     idempotency_key = request.headers.get("idempotency-key", "")
-    if idempotency_key and idempotency_key in _payments:
-        return _payments[idempotency_key]
+    if idempotency_key and idempotency_key in s["payments"]:
+        return s["payments"][idempotency_key]
     payment = {
-        "id": _payment_next_id,
+        "id": s["payment_next_id"],
         "amount": body["amount"],
         "currency": body["currency"],
         "status": "completed",
     }
-    _payment_next_id += 1
+    s["payment_next_id"] += 1
     if idempotency_key:
-        _payments[idempotency_key] = payment
+        s["payments"][idempotency_key] = payment
     return payment
 
 
-# --- Webhooks ---
-_webhook_registrations: list[dict] = []
-_webhook_received: list[dict] = []
-
-
 @router.post("/webhooks/register")
-def register_webhook(body: dict | None = None):
+def register_webhook(request: Request, body: dict | None = None):
+    s = state.get("advanced", request)
     if not body or "url" not in body or "events" not in body:
         raise HTTPException(status_code=400, detail="url and events are required")
     registration = {
@@ -184,12 +188,13 @@ def register_webhook(body: dict | None = None):
         "url": body["url"],
         "events": body["events"],
     }
-    _webhook_registrations.append(registration)
+    s["webhook_registrations"].append(registration)
     return registration
 
 
 @router.post("/orders")
-def create_order(body: dict | None = None):
+def create_order(request: Request, body: dict | None = None):
+    s = state.get("advanced", request)
     if not body or "product" not in body:
         raise HTTPException(status_code=400, detail="product is required")
     order = {
@@ -198,9 +203,9 @@ def create_order(body: dict | None = None):
         "status": "created",
     }
     # Simulate webhook delivery
-    for reg in _webhook_registrations:
+    for reg in s["webhook_registrations"]:
         if "order.created" in reg["events"]:
-            _webhook_received.append({
+            s["webhook_received"].append({
                 "event": "order.created",
                 "data": order,
                 "delivered_to": reg["url"],
@@ -210,19 +215,15 @@ def create_order(body: dict | None = None):
 
 
 @router.get("/webhooks/echo/received")
-def get_received_webhooks():
-    return {"received": _webhook_received}
-
-
-# --- Flaky service (50% failure rate) ---
-
-_flaky_counter = 0
+def get_received_webhooks(request: Request):
+    s = state.get("advanced", request)
+    return {"received": s["webhook_received"]}
 
 
 @router.get("/flaky-service")
-def flaky_service():
-    global _flaky_counter
-    _flaky_counter += 1
-    if _flaky_counter % 2 == 0:
+def flaky_service(request: Request):
+    s = state.get("advanced", request)
+    s["flaky_counter"] += 1
+    if s["flaky_counter"] % 2 == 0:
         raise HTTPException(status_code=503, detail="Service Unavailable")
-    return {"status": "ok", "data": "Here's your flaky data", "attempt": _flaky_counter}
+    return {"status": "ok", "data": "Here's your flaky data", "attempt": s["flaky_counter"]}

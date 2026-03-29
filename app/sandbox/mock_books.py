@@ -1,34 +1,43 @@
 """Mock Books API — Track 1: REST Fundamentals."""
 
+import copy
+
 from fastapi import APIRouter, HTTPException, Request, Response, status
 
-from app.sandbox.seed_data import get_books_store, get_next_id
+from app.sandbox import state
+from app.sandbox.seed_data import BOOKS
 
 router = APIRouter(prefix="/api/v1/sandbox/books", tags=["Sandbox: Books"])
 
-# In-memory store — persists across requests within one process run.
-_books: list[dict] = get_books_store()
+
+def _seed():
+    return {
+        "books": copy.deepcopy(BOOKS),
+        "next_id": max(b["id"] for b in BOOKS) + 1,
+    }
 
 
-def _find_book(book_id: int) -> dict | None:
-    return next((b for b in _books if b["id"] == book_id), None)
+state.register("books", _seed)
 
 
 @router.get("/")
-def list_books(page: int = 1, per_page: int = 10):
+def list_books(request: Request, page: int = 1, per_page: int = 10):
+    s = state.get("books", request)
+    books = s["books"]
     start = (page - 1) * per_page
     end = start + per_page
     return {
-        "data": _books[start:end],
-        "total": len(_books),
+        "data": books[start:end],
+        "total": len(books),
         "page": page,
         "per_page": per_page,
     }
 
 
 @router.get("/{book_id}")
-def get_book(book_id: int):
-    book = _find_book(book_id)
+def get_book(request: Request, book_id: int):
+    s = state.get("books", request)
+    book = next((b for b in s["books"] if b["id"] == book_id), None)
     if not book:
         raise HTTPException(status_code=404, detail="Book not found")
     return book
@@ -36,27 +45,30 @@ def get_book(book_id: int):
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 def create_book(request: Request, response: Response, body: dict | None = None):
+    s = state.get("books", request)
     content_type = request.headers.get("content-type", "")
     if "application/json" not in content_type:
         raise HTTPException(status_code=415, detail="Content-Type must be application/json")
     if not body or not body.get("title") or not body.get("author"):
         raise HTTPException(status_code=400, detail="title and author are required")
     new_book = {
-        "id": get_next_id(),
+        "id": s["next_id"],
         "title": body["title"],
         "author": body["author"],
         "year": body.get("year"),
     }
-    _books.append(new_book)
+    s["next_id"] += 1
+    s["books"].append(new_book)
     return new_book
 
 
 @router.put("/{book_id}")
 def update_book(book_id: int, request: Request, body: dict | None = None):
+    s = state.get("books", request)
     content_type = request.headers.get("content-type", "")
     if "application/json" not in content_type:
         raise HTTPException(status_code=415, detail="Content-Type must be application/json")
-    book = _find_book(book_id)
+    book = next((b for b in s["books"] if b["id"] == book_id), None)
     if not book:
         raise HTTPException(status_code=404, detail="Book not found")
     if not body or not all(k in body for k in ("title", "author", "year")):
@@ -68,11 +80,12 @@ def update_book(book_id: int, request: Request, body: dict | None = None):
 
 
 @router.delete("/{book_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_book(book_id: int):
-    book = _find_book(book_id)
+def delete_book(request: Request, book_id: int):
+    s = state.get("books", request)
+    book = next((b for b in s["books"] if b["id"] == book_id), None)
     if not book:
         raise HTTPException(status_code=404, detail="Book not found")
-    _books.remove(book)
+    s["books"].remove(book)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

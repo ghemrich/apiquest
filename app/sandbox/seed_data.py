@@ -31,18 +31,3 @@ BOOKS = [
     # Book ID 99 — placeholder for the DELETE challenge (obviously fake)
     {"id": 99, "title": "[TEST] Placeholder — Delete Me", "author": "Nobody", "year": 1},
 ]
-
-# Next auto-id for POST /books
-_next_id = max(b["id"] for b in BOOKS) + 1
-
-
-def get_books_store() -> list[dict]:
-    """Return a fresh copy of books data for each request context."""
-    return [dict(b) for b in BOOKS]
-
-
-def get_next_id() -> int:
-    global _next_id
-    nid = _next_id
-    _next_id += 1
-    return nid
