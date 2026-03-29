@@ -179,9 +179,9 @@ CHALLENGES = {
          ["Users can belong to multiple teams, and teams have multiple users.", "Adding a member is a POST to the team's member list.", "The body identifies which user to add."],
          ["Teams and users are many-to-many", "POST to add a member", "/teams/2/members", "Send user_id in body", "POST with {\"user_id\": 5}"],
          "/api/v1/sandbox/users-data", None),
-        ("Cascade Effects", 'Delete project 3 and observe what happens to its tasks. Warning: this is destructive — complete the other Data Relationships challenges first! Check the tasks before and after.', "DELETE", "/api/v1/sandbox/users-data/projects/3", None, None, None, 100,
-         ["Deleting a parent resource can affect its children — check what exists before and after.", "There's an HTTP method specifically for removing resources.", "This is destructive and cannot be undone — make sure you've completed the other challenges first."],
-         ["First GET /projects/3?include=tasks to see what exists", "DELETE removes the resource", "What happens to child resources?", "Cascade delete removes children too", "DELETE /api/v1/sandbox/users-data/projects/3"],
+        ("Cascade Effects", 'Project 3 ("Mobile App") has tasks linked to it. Delete the project and observe what happens to those tasks. First use GET /projects/3?include=tasks to see what exists, then delete, then check again.', "DELETE", "/api/v1/sandbox/users-data/projects/3", None, None, None, 100,
+         ["Deleting a parent resource can affect its children — check what exists before and after.", "There's an HTTP method specifically for removing resources.", "Use GET /projects/3?include=tasks to see the project and its tasks first."],
+         ["GET /projects/3?include=tasks shows project with its tasks", "DELETE removes the resource", "What happens to child resources?", "Cascade delete removes children too", "DELETE /api/v1/sandbox/users-data/projects/3"],
          "/api/v1/sandbox/users-data", None),
     ],
     "Error Detective": [
