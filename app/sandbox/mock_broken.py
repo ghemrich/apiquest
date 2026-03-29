@@ -91,6 +91,38 @@ def chain_complete(body: dict | None = None):
     }
 
 
+@router.get("/api-docs", include_in_schema=False)
+def api_docs():
+    return {
+        "endpoints": [
+            {
+                "method": "GET",
+                "path": "/items",
+                "description": "List all items. Supports filtering.",
+                "query_parameters": [
+                    {"name": "staus", "type": "string", "required": False,
+                     "description": "Filter by item status. Values: active, inactive"}
+                ],
+            },
+            {
+                "method": "POST",
+                "path": "/orders",
+                "description": "Create a new order.",
+                "body": {"product": "string", "quantity": "integer", "shipping_address": "string"},
+            },
+            {
+                "method": "GET",
+                "path": "/search",
+                "description": "Search items by keyword.",
+                "query_parameters": [
+                    {"name": "q", "type": "string", "required": True,
+                     "description": "Search query"}
+                ],
+            },
+        ],
+    }
+
+
 @router.get("/items", include_in_schema=False)
 def list_items(
     request: Request,

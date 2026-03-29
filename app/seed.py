@@ -185,9 +185,9 @@ CHALLENGES = {
          "/api/v1/sandbox/users-data", None),
     ],
     "Error Detective": [
-        ("The Silent Failure", "One of the sandbox endpoints supports filtering, but according to the docs the filter has no effect — it returns everything regardless. Find the endpoint and figure out why.", "GET", "/api/v1/sandbox/broken/items", None, {"status": "active"}, None, 150,
-         ["The sandbox has several endpoints. Start by exploring what\u2019s available.", "One endpoint returns a list that can be filtered by status. Try: GET /items?staus=active", "If the total with the filter equals the total without it, the filter isn\u2019t doing anything."],
-         ["Compare the total with and without the filter parameter", "What if the documentation you were given isn\u2019t accurate?", "Look at the parameter name character by character", "staus \u2260 status \u2014 two letters are swapped", "Use ?status=active (correct spelling)"],
+        ("The Silent Failure", "The broken sandbox has its own API documentation. One of the documented features doesn\u2019t seem to work \u2014 filtering returns everything. Consult the docs, test the endpoint, and figure out what\u2019s wrong.", "GET", "/api/v1/sandbox/broken/items", None, {"status": "active"}, None, 150,
+         ["Start by reading the sandbox\u2019s own docs: GET /api-docs", "Try the filter parameter exactly as the docs describe it. Does the total change?", "If the filter has no effect, something about the request isn\u2019t what the server expects."],
+         ["Compare the total with and without the filter parameter", "What if the documentation itself has a mistake?", "Look at the parameter name character by character", "staus \u2260 status \u2014 two letters are swapped", "Use ?status=active (correct spelling)"],
          "/api/v1/sandbox/broken", None),
         ("Missing Required Fields", 'Create an order for a "Widget" (quantity: 5) shipped to "123 Main St". The API will tell you if anything is missing.', "POST", "/api/v1/sandbox/broken/orders", None, None,
          {"product": "Widget", "quantity": 5, "shipping_address": "123 Main St"}, 150,
