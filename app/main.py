@@ -3,7 +3,6 @@ import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
-from jose import jwt as jose_jwt
 
 from app.config import settings
 from app.kafka.consumers import (
@@ -62,25 +61,17 @@ app.include_router(root.router)
 
 @app.middleware("http")
 async def sandbox_session(request: Request, call_next):
-    """Assign a per-session ID from JWT user identity or cookie fallback."""
+    """Assign a per-session sandbox ID from cookie or client IP."""
     if request.url.path.startswith("/api/v1/sandbox"):
-        sid = None
-        # Try to extract user ID from Bearer token
-        auth = request.headers.get("authorization", "")
-        if auth.startswith("Bearer "):
-            try:
-                payload = jose_jwt.decode(
-                    auth[7:], settings.SECRET_KEY, algorithms=[settings.ALGORITHM],
-                )
-                sid = payload.get("sub")
-            except Exception:
-                pass
-        # Fall back to cookie
-        if not sid:
-            sid = request.cookies.get("quest_sandbox")
-        # Fall back to client IP (transparent for any HTTP client)
-        if not sid:
-            sid = f"ip-{request.client.host}" if request.client else None
+        # Real client IP: trust CF-Connecting-IP (Cloudflare) or X-Forwarded-For
+        client_ip = (
+            request.headers.get("cf-connecting-ip")
+            or (request.headers.get("x-forwarded-for", "").split(",")[0].strip())
+            or (request.client.host if request.client else "")
+        )
+        sid = request.cookies.get("quest_sandbox")
+        if not sid and client_ip:
+            sid = f"ip-{client_ip}"
         new = not sid
         if new:
             sid = uuid.uuid4().hex
