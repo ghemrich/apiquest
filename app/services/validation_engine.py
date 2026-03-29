@@ -1,5 +1,6 @@
 import re
 from dataclasses import dataclass
+from urllib.parse import unquote_plus
 
 _PLACEHOLDER_RE = re.compile(r"<(access_token|admin_token|refresh_token|token|etag)>")
 
@@ -59,7 +60,9 @@ def _check_query_params(submitted: dict | None, expected: dict | None) -> bool:
     if not submitted:
         return False
     for key, value in expected.items():
-        if str(submitted.get(key, "")) != str(value):
+        submitted_val = unquote_plus(str(submitted.get(key, "")))
+        expected_val = unquote_plus(str(value))
+        if submitted_val != expected_val:
             return False
     return True
 
